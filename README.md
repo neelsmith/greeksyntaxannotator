@@ -31,3 +31,6 @@ UI functionality:
 - `treebankprompting.md`: text of prompts pasted into chat with Gemini 2.5 pro.
 - `versions`: web pages of incremental builds
 
+## Caveats
+
+The web app was written entirely by gemini-2.5-pro. The code passes some sanity tests, but I have not even looked at the javascript. When I encountered errors, I let gemini fix them. Use the code as you like, but be aware that I have no idea what it does or how it works.
