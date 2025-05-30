@@ -1,6 +1,6 @@
 # `greeksyntaxannotator`
 
-Work in progress on a vibe-coded single-page web app for annotating the syntax of ancient Greek.
+> Work in progress on a vibe-coded single-page web app for annotating the syntax of ancient Greek.
 
 
 ![Screen shot](./annotator.png)
