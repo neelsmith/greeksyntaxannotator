@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Greek Token Annotator - Stage 4</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        textarea {
+            width: 90%;
+            min-height: 100px;
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            font-size: 1.1em;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        select { /* General select styling */
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background-color: white;
+        }
+        #outputContainer {
+            border: 1px solid #ddd;
+            padding: 15px;
+            background-color: #f9f9f9;
+            min-height: 50px;
+            font-size: 1.1em;
+            line-height: 2.2;
+            margin-bottom: 20px;
+        }
+        .lexical-token {
+            cursor: pointer;
+            padding: 1px 3px; /* Adjusted padding for better background visibility */
+            border-radius: 3px;
+            transition: background-color 0.2s ease-in-out; /* Smooth color transition */
+            display: inline-block; /* Ensures background color applies correctly */
+            margin: 0 1px; /* Slight margin to separate highlighted tokens */
+        }
+        .lexical-token:hover {
+            box-shadow: 0 0 5px rgba(0,0,0,0.2); /* Subtle hover for clickable tokens */
+        }
+        .connecting-word {
+            background-color: yellow !important; /* !important to override other backgrounds */
+            font-weight: bold;
+        }
+        .annotation-section {
+            margin-top: 15px;
+            padding: 15px;
+            border: 1px solid #ccc;
+            background-color: #f0f0f0;
+        }
+        .annotation-section h3 {
+            margin-top: 0;
+        }
+        .prompt {
+            margin-top: 10px;
+            font-style: italic;
+            color: #555;
+        }
+        #mode2Container, #mode3Container {
+            display: none; /* Initially hidden */
+        }
+        #annotationTable {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        #annotationTable th, #annotationTable td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        #annotationTable th {
+            background-color: #e9e9e9;
+        }
+        #annotationTable select, #annotationTable input[type="number"] {
+            width: 95%;
+            padding: 5px;
+            box-sizing: border-box;
+        }
+        .error-message {
+            color: red;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        #verbalUnitSelectLabel {
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Greek Text Annotator</h1>
+    <p>Enter Greek text below. Lexical tokens will get a sequential ID. Punctuation (<code>. , : ;</code>) will be separated.</p>
+
+    <label for="inputText">Input Greek Text:</label><br>
+    <textarea id="inputText" placeholder="e.g., ἀποδέδοται, ὥστε ἐν τῷ νόμῳ.">περὶ τούτου γὰρ μόνου τοῦ ἀδικήματος καὶ ἐν δημοκρατίᾳ καὶ ὀλιγαρχίᾳ ἡ αὐτὴ τιμωρία τοῖς ἀσθενεστάτοις πρὸς τοὺς τὰ μέγιστα δυναμένους ἀποδέδοται, ὥστε τὸν χείριστον τῶν αὐτῶν τυγχάνειν τῷ βελτίστῳ:</textarea><br>
+
+    <button onclick="processText()">Analyze Text</button>
+
+    <h2>Formatted Output:</h2>
+    <div id="outputContainer">
+        <!-- Formatted text will appear here -->
+    </div>
+
+    <div id="mode1Controls" class="annotation-section">
+        <h3>Annotation Mode 1: Connectivity</h3>
+        <input type="checkbox" id="asyndetonCheckbox">
+        <label for="asyndetonCheckbox">Sentence illustrates asyndeton</label>
+        <p id="annotationPrompt" class="prompt">Please analyze a text first.</p>
+    </div>
+
+    <div id="mode2Container" class="annotation-section">
+        <h3>Annotation Mode 2: Clause/Phrase Analysis (Verbal Units)</h3>
+        <button id="addRowButton">Add New Verbal Unit</button>
+        <table id="annotationTable">
+            <thead>
+                <tr>
+                    <th>Syntactic type</th>
+                    <th>Semantic type</th>
+                    <th>Depth</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="annotationTableBody">
+                <!-- Rows will be added here by JavaScript -->
+            </tbody>
+        </table>
+        <p id="mode2Status" class="prompt"></p>
+    </div>
+
+    <div id="mode3Container" class="annotation-section">
+        <h3>Annotation Mode 3: Token Assignment to Verbal Units</h3>
+        <label for="verbalUnitSelect" id="verbalUnitSelectLabel">Select Verbal Unit:</label>
+        <select id="verbalUnitSelect">
+            <option value="">--Select a Verbal Unit--</option>
+        </select>
+        <p id="mode3Status" class="prompt">Complete Mode 1 & add at least one Verbal Unit in Mode 2 to begin.</p>
+    </div>
+
+    <script>
+        // --- Global State & Constants ---
+        let classifiedTokens = [];
+        let isAsyndeton = false;
+        let connectingWordId = null;
+        let mode1Complete = false;
+
+        let mode2Annotations = []; // Stores confirmed annotations for Mode 2 (Verbal Units)
+        let mode2CurrentRowIndex = 0;
+
+        let mode3SelectedVerbalUnitId = null; // ID of the VU selected in Mode 3 dropdown
+        // mode3TokenAssignments: will be a property of each mode2Annotation object
+        // e.g., mode2Annotations[i].assignedTokens = Set()
+        // e.g., mode2Annotations[i].color = 'rgba(R,G,B,0.5)'
+
+        const SYNTACTIC_TYPES = ["independent clause", "subordinate clause", "circumstantial participle", "attributive participle", "indirect statement with infinitive", "indirect statement with participle"];
+        const SEMANTIC_TYPES = ["transitive", "intransitive", "linking"];
+
+        // --- DOM Elements ---
+        const outputContainer = document.getElementById('outputContainer');
+        const asyndetonCheckbox = document.getElementById('asyndetonCheckbox');
+        const annotationPrompt = document.getElementById('annotationPrompt');
+        const inputTextElement = document.getElementById('inputText');
+
+        const mode1Controls = document.getElementById('mode1Controls');
+        const mode2Container = document.getElementById('mode2Container');
+        const addRowButton = document.getElementById('addRowButton');
+        const annotationTableBody = document.getElementById('annotationTableBody');
+        const mode2Status = document.getElementById('mode2Status');
+
+        const mode3Container = document.getElementById('mode3Container');
+        const verbalUnitSelect = document.getElementById('verbalUnitSelect');
+        const mode3Status = document.getElementById('mode3Status');
+
+        // --- Helper: Random Color Generator ---
+        function getRandomColorWithOpacity(opacity = 0.5) {
+            const r = Math.floor(Math.random() * 256);
+            const g = Math.floor(Math.random() * 256);
+            const b = Math.floor(Math.random() * 256);
+            return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+        }
+
+        // --- Tokenization & Initial Formatting (Mode 0) ---
+        function analyzeGreekText(text) {
+            const punctuationChars = ['.', ',', ':', ';'];
+            const rawTokens = text.match(/[.,:;]|[^.,:;\s]+/g) || [];
+            const newClassifiedTokens = [];
+            let lexicalIdCounter = 1;
+
+            for (const rawToken of rawTokens) {
+                if (punctuationChars.includes(rawToken)) {
+                    newClassifiedTokens.push({ value: rawToken, class: 'punctuation' });
+                } else {
+                    // Each lexical token now also has a 'verbalUnitId' property, initially null
+                    newClassifiedTokens.push({ value: rawToken, class: 'lexical', id: lexicalIdCounter++, verbalUnitId: null });
+                }
+            }
+            return newClassifiedTokens;
+        }
+
+        function formatTokensForDisplay(tokens) {
+            let htmlOutput = "";
+            outputContainer.innerHTML = ''; // Clear existing content before rebuilding
+
+            for (let i = 0; i < tokens.length; i++) {
+                const token = tokens[i];
+                const nextToken = (i + 1 < tokens.length) ? tokens[i + 1] : null;
+
+                if (token.class === 'punctuation') {
+                    htmlOutput += token.value + " ";
+                } else if (token.class === 'lexical') {
+                    // The span itself will have its background updated by applyTokenHighlights
+                    const span = document.createElement('span');
+                    span.classList.add('lexical-token');
+                    span.dataset.tokenId = token.id;
+                    span.textContent = token.value;
+
+                    const sup = document.createElement('sup');
+                    sup.style.color = "silver";
+                    sup.textContent = token.id;
+                    span.appendChild(sup);
+
+                    htmlOutput += span.outerHTML;
+
+                    if (!nextToken || nextToken.class !== 'punctuation') {
+                        htmlOutput += " ";
+                    }
+                }
+            }
+            outputContainer.innerHTML = htmlOutput.trim();
+            applyTokenHighlights(); // Apply highlights after content is in DOM
+        }
+
+        // --- State Reset & UI Updates ---
+        function resetFullAnnotationState() {
+            isAsyndeton = false;
+            connectingWordId = null;
+            mode1Complete = false;
+            asyndetonCheckbox.checked = false;
+            asyndetonCheckbox.disabled = true;
+            clearAllHighlights(); // Clears Mode 1 and Mode 3 highlights
+
+            mode2Annotations = [];
+            annotationTableBody.innerHTML = '';
+            mode2CurrentRowIndex = 0;
+            mode2Status.textContent = '';
+            addRowButton.disabled = true; // Initially disabled
+
+            mode3SelectedVerbalUnitId = null;
+            verbalUnitSelect.innerHTML = '<option value="">--Select a Verbal Unit--</option>'; // Reset dropdown
+            verbalUnitSelect.value = "";
+            mode3Status.textContent = 'Complete Mode 1 & add at least one Verbal Unit in Mode 2.';
+
+            updateUIVisibility();
+            updateAnnotationPrompt();
+        }
+
+        function processText() {
+            const inputText = inputTextElement.value;
+            outputContainer.innerHTML = "";
+
+            if (!inputText.trim()) {
+                outputContainer.innerHTML = "<em>Please enter some text to analyze.</em>";
+                classifiedTokens = [];
+                resetFullAnnotationState();
+                annotationPrompt.textContent = "Please analyze a text first.";
+                return;
+            }
+
+            resetFullAnnotationState();
+            classifiedTokens = analyzeGreekText(inputText);
+            formatTokensForDisplay(classifiedTokens); // This now handles initial display and calls applyTokenHighlights
+
+            asyndetonCheckbox.disabled = false;
+            updateAnnotationPrompt();
+            updateUIVisibility();
+        }
+
+        function updateUIVisibility() {
+            mode2Container.style.display = mode1Complete ? 'block' : 'none';
+            addRowButton.disabled = !mode1Complete || (annotationTableBody.querySelector('button.confirm-row-btn') !== null);
+
+            const mode2HasAnnotations = mode2Annotations.some(vu => vu.confirmed);
+            mode3Container.style.display = mode1Complete && mode2HasAnnotations ? 'block' : 'none';
+
+            if (mode1Complete && mode2HasAnnotations) {
+                 verbalUnitSelect.disabled = false;
+                 updateMode3Status();
+            } else {
+                 verbalUnitSelect.disabled = true;
+                 mode3Status.textContent = 'Complete Mode 1 & add at least one confirmed Verbal Unit in Mode 2.';
+            }
+        }
+
+
+        function updateAnnotationPrompt() { // Mode 1 prompt
+            if (classifiedTokens.length === 0) {
+                annotationPrompt.textContent = "Please analyze a text first.";
+                asyndetonCheckbox.disabled = true;
+                mode1Complete = false;
+                updateUIVisibility();
+                return;
+            }
+            asyndetonCheckbox.disabled = false;
+
+            if (mode1Complete) {
+                if (isAsyndeton) {
+                    annotationPrompt.textContent = "Mode 1 Complete: Asyndeton marked.";
+                } else if (connectingWordId !== null) {
+                    const token = classifiedTokens.find(t => t.id === connectingWordId && t.class === 'lexical');
+                    annotationPrompt.textContent = `Mode 1 Complete: '${token ? token.value : '?'}' selected.`;
+                }
+            } else {
+                annotationPrompt.textContent = "Mode 1: Select connecting word or mark asyndeton.";
+            }
+            updateUIVisibility();
+        }
+
+        // --- Mode 1: Connectivity ---
+        function clearAllHighlights() {
+            // Clear Mode 1 (connecting word) highlights
+            document.querySelectorAll('.lexical-token.connecting-word').forEach(el => {
+                el.classList.remove('connecting-word');
+            });
+            // Clear Mode 3 (verbal unit) highlights by resetting background
+            // This is now handled by applyTokenHighlights by default
+            applyTokenHighlights();
+        }
+
+        function highlightConnectingWord() {
+            // This only adds/removes the 'connecting-word' class.
+            // The actual background color is managed by applyTokenHighlights to handle overlaps.
+            document.querySelectorAll('.lexical-token.connecting-word').forEach(el => el.classList.remove('connecting-word'));
+            if (connectingWordId !== null && !isAsyndeton) {
+                const tokenElement = outputContainer.querySelector(`.lexical-token[data-token-id="${connectingWordId}"]`);
+                if (tokenElement) {
+                    tokenElement.classList.add('connecting-word');
+                }
+            }
+            applyTokenHighlights(); // Re-apply all highlights to ensure correct layering
+        }
+
+        asyndetonCheckbox.addEventListener('change', function(event) {
+            if (classifiedTokens.length === 0) return;
+            isAsyndeton = event.target.checked;
+            if (isAsyndeton) {
+                connectingWordId = null;
+                mode1Complete = true;
+            } else {
+                mode1Complete = (connectingWordId !== null);
+            }
+            highlightConnectingWord();
+            updateAnnotationPrompt();
+        });
+
+        // Combined click handler for Mode 1 and Mode 3 token interactions
+        outputContainer.addEventListener('click', function(event) {
+            if (classifiedTokens.length === 0) return;
+
+            const clickedSpan = event.target.closest('.lexical-token');
+            if (!clickedSpan) return;
+
+            const tokenId = parseInt(clickedSpan.dataset.tokenId);
+
+            // --- Mode 3 Token Assignment Logic ---
+            // Mode 3 takes precedence if active (Mode 1 complete, VU selected)
+            if (mode1Complete && mode2Annotations.some(vu => vu.confirmed) && mode3SelectedVerbalUnitId) {
+                const selectedVU = mode2Annotations.find(vu => vu.id === mode3SelectedVerbalUnitId);
+                if (selectedVU) {
+                    const tokenIndexInVU = selectedVU.assignedTokens.indexOf(tokenId);
+                    const tokenToUpdate = classifiedTokens.find(t => t.id === tokenId && t.class === 'lexical');
+
+                    if (tokenIndexInVU > -1) { // Token is already in this VU, remove it
+                        selectedVU.assignedTokens.splice(tokenIndexInVU, 1);
+                        if (tokenToUpdate) tokenToUpdate.verbalUnitId = null;
+                    } else { // Token not in this VU
+                        // Check if token is in *another* VU and remove it from there first
+                        mode2Annotations.forEach(vu => {
+                            if (vu.id !== selectedVU.id) {
+                                const idx = vu.assignedTokens.indexOf(tokenId);
+                                if (idx > -1) vu.assignedTokens.splice(idx, 1);
+                            }
+                        });
+                        selectedVU.assignedTokens.push(tokenId);
+                        if (tokenToUpdate) tokenToUpdate.verbalUnitId = selectedVU.id;
+                    }
+                    applyTokenHighlights();
+                    updateMode3Status(); // Update count or feedback
+                    return; // Handled by Mode 3
+                }
+            }
+
+            // --- Mode 1 Connecting Word Logic ---
+            // Only allow Mode 1 interaction if Mode 1 is not yet complete OR
+            // if it was complete by asyndeton and asyndeton is now unchecked.
+            if (!mode1Complete || (mode1Complete && isAsyndeton && !asyndetonCheckbox.checked)) {
+                 if (isAsyndeton) return; // Don't select connecting word if asyndeton checked
+
+                if (connectingWordId === tokenId) {
+                    connectingWordId = null;
+                    mode1Complete = false;
+                } else {
+                    connectingWordId = tokenId;
+                    mode1Complete = true;
+                }
+                asyndetonCheckbox.checked = false;
+                isAsyndeton = false;
+                highlightConnectingWord(); // This now calls applyTokenHighlights
+                updateAnnotationPrompt();
+            }
+        });
+
+
+        // --- Mode 2: Clause/Phrase Analysis (Verbal Units) ---
+        addRowButton.addEventListener('click', function() {
+            // ... (same as before, but ensure row ID is unique and can be referenced)
+            const newRowId = `vu-row-${mode2CurrentRowIndex}`;
+            mode2CurrentRowIndex++;
+
+            const row = annotationTableBody.insertRow();
+            row.id = newRowId;
+            // ... (rest of cell creation and input elements as before)
+
+            const cellSyntactic = row.insertCell();
+            const cellSemantic = row.insertCell();
+            const cellDepth = row.insertCell();
+            const cellActions = row.insertCell();
+
+            const selectSyntactic = document.createElement('select');
+            selectSyntactic.innerHTML = `<option value="">--Select Syntactic--</option>` +
+                                        SYNTACTIC_TYPES.map(type => `<option value="${type}">${type}</option>`).join('');
+            cellSyntactic.appendChild(selectSyntactic);
+
+            const selectSemantic = document.createElement('select');
+            selectSemantic.innerHTML = `<option value="">--Select Semantic--</option>` +
+                                       SEMANTIC_TYPES.map(type => `<option value="${type}">${type}</option>`).join('');
+            cellSemantic.appendChild(selectSemantic);
+
+            const inputDepth = document.createElement('input');
+            inputDepth.type = 'number';
+            inputDepth.min = '0';
+            inputDepth.placeholder = 'e.g., 0';
+            cellDepth.appendChild(inputDepth);
+
+            const confirmBtn = document.createElement('button');
+            confirmBtn.textContent = 'Confirm';
+            confirmBtn.classList.add('confirm-row-btn');
+            confirmBtn.onclick = function() { confirmAnnotationRow(row); }; // Pass the actual row DOM element
+            cellActions.appendChild(confirmBtn);
+
+            const errorMsgElement = document.createElement('div');
+            errorMsgElement.classList.add('error-message');
+            cellSyntactic.appendChild(errorMsgElement);
+
+            addRowButton.disabled = true;
+            mode2Status.textContent = "Please fill and confirm the new verbal unit.";
+        });
+
+        function confirmAnnotationRow(rowElement) {
+            const selectSyntactic = rowElement.querySelector('td:nth-child(1) select');
+            const selectSemantic = rowElement.querySelector('td:nth-child(2) select');
+            const inputDepth = rowElement.querySelector('td:nth-child(3) input[type="number"]');
+            const errorMsgElement = rowElement.querySelector('.error-message');
+            if (errorMsgElement) errorMsgElement.textContent = '';
+
+            const syntacticValue = selectSyntactic.value;
+            const semanticValue = selectSemantic.value;
+            const depthValue = inputDepth.value;
+
+            let isValid = true;
+            let errors = [];
+            if (!syntacticValue) { errors.push("Syntactic type required."); isValid = false; }
+            if (!semanticValue) { errors.push("Semantic type required."); isValid = false; }
+            if (depthValue === '' || isNaN(parseInt(depthValue))) { errors.push("Depth must be integer."); isValid = false; }
+
+            if (!isValid) {
+                if (errorMsgElement) errorMsgElement.innerHTML = errors.join('<br>');
+                mode2Status.textContent = "Please correct errors in the current row.";
+                return;
+            }
+
+            const annotationData = {
+                id: rowElement.id, // Use the row's DOM ID as the VU ID
+                syntactic: syntacticValue,
+                semantic: semanticValue,
+                depth: parseInt(depthValue),
+                color: getRandomColorWithOpacity(0.5),
+                assignedTokens: [], // Initialize as an empty array for token IDs
+                confirmed: true
+            };
+            mode2Annotations.push(annotationData);
+
+            rowElement.cells[0].innerHTML = syntacticValue;
+            rowElement.cells[1].innerHTML = semanticValue;
+            rowElement.cells[2].innerHTML = depthValue;
+            rowElement.cells[3].innerHTML = `<span style="color: ${annotationData.color}; font-weight: bold;">■</span> Confirmed`;
+
+            addRowButton.disabled = false;
+            mode2Status.textContent = `Verbal Unit "${syntacticValue}" (Depth ${depthValue}) confirmed. Add another?`;
+            updateVerbalUnitSelector();
+            updateUIVisibility(); // This will show Mode 3 if it's the first confirmed VU
+        }
+
+        // --- Mode 3: Token Assignment ---
+        function updateVerbalUnitSelector() {
+            const previousSelection = verbalUnitSelect.value;
+            verbalUnitSelect.innerHTML = '<option value="">--Select a Verbal Unit--</option>'; // Clear existing
+            mode2Annotations.filter(vu => vu.confirmed).forEach(vu => {
+                const option = document.createElement('option');
+                option.value = vu.id;
+                // Make the display text more informative
+                option.textContent = `VU ${mode2Annotations.findIndex(v => v.id === vu.id) + 1}: ${vu.syntactic} (Depth ${vu.depth})`;
+                verbalUnitSelect.appendChild(option);
+            });
+            // Try to restore previous selection if still valid
+            if (mode2Annotations.some(vu => vu.id === previousSelection && vu.confirmed)) {
+                verbalUnitSelect.value = previousSelection;
+            } else {
+                verbalUnitSelect.value = ""; // Reset if previous selection is no longer valid
+                mode3SelectedVerbalUnitId = null; // Clear the selected ID
+            }
+             updateMode3Status();
+        }
+
+
+        verbalUnitSelect.addEventListener('change', function() {
+            mode3SelectedVerbalUnitId = this.value;
+            applyTokenHighlights(); // Re-highlight based on new selection (optional, but good for visual cues)
+            updateMode3Status();
+        });
+
+        function applyTokenHighlights() {
+            const tokenElements = outputContainer.querySelectorAll('.lexical-token');
+            tokenElements.forEach(el => {
+                const tokenId = parseInt(el.dataset.tokenId);
+                el.style.backgroundColor = 'transparent'; // Reset background
+                el.classList.remove('connecting-word'); // Remove just in case, then re-add if needed
+
+                // Mode 3: Verbal Unit Highlighting
+                const assignedVU = mode2Annotations.find(vu => vu.confirmed && vu.assignedTokens.includes(tokenId));
+                if (assignedVU) {
+                    el.style.backgroundColor = assignedVU.color;
+                }
+
+                // Mode 1: Connecting Word Highlighting (takes precedence or layers)
+                if (connectingWordId === tokenId && !isAsyndeton) {
+                    el.classList.add('connecting-word'); // This class has !important for yellow BG
+                }
+            });
+        }
+
+        function updateMode3Status() {
+            if (!mode1Complete || !mode2Annotations.some(vu => vu.confirmed)) {
+                mode3Status.textContent = 'Complete Mode 1 & add at least one confirmed Verbal Unit in Mode 2.';
+                verbalUnitSelect.disabled = true;
+                return;
+            }
+
+            verbalUnitSelect.disabled = false;
+            if (!mode3SelectedVerbalUnitId) {
+                mode3Status.textContent = "Select a Verbal Unit to assign tokens.";
+            } else {
+                const selectedVU = mode2Annotations.find(vu => vu.id === mode3SelectedVerbalUnitId);
+                if (selectedVU) {
+                    mode3Status.textContent = `Assigning to: ${selectedVU.syntactic} (Depth ${selectedVU.depth}). Click tokens to assign/unassign. Tokens assigned: ${selectedVU.assignedTokens.length}.`;
+                } else {
+                     mode3Status.textContent = "Error: Selected Verbal Unit not found. Please re-select.";
+                }
+            }
+        }
+
+
+        // --- Initial Setup ---
+        window.onload = function() {
+            resetFullAnnotationState();
+            if (inputTextElement.value.trim()) {
+                 processText();
+            } else {
+                annotationPrompt.textContent = "Please analyze a text first.";
+                asyndetonCheckbox.disabled = true;
+            }
+            updateUIVisibility();
+        };
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Greek Token Annotator - Stage 3</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        textarea {
+            width: 90%;
+            min-height: 100px; /* Slightly taller for longer default text */
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            font-size: 1.1em;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #outputContainer {
+            border: 1px solid #ddd;
+            padding: 15px;
+            background-color: #f9f9f9;
+            min-height: 50px;
+            font-size: 1.1em;
+            line-height: 2.2;
+            margin-bottom: 20px;
+        }
+        .lexical-token {
+            cursor: pointer;
+            padding: 0 2px;
+            border-radius: 3px;
+        }
+        .lexical-token:hover {
+            background-color: #e0e0e0;
+        }
+        .connecting-word {
+            background-color: yellow;
+            font-weight: bold;
+        }
+        .annotation-section {
+            margin-top: 15px;
+            padding: 15px;
+            border: 1px solid #ccc;
+            background-color: #f0f0f0;
+        }
+        .annotation-section h3 {
+            margin-top: 0;
+        }
+        .prompt {
+            margin-top: 10px;
+            font-style: italic;
+            color: #555;
+        }
+        #mode2Container {
+            display: none; /* Initially hidden */
+        }
+        #annotationTable {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        #annotationTable th, #annotationTable td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        #annotationTable th {
+            background-color: #e9e9e9;
+        }
+        #annotationTable select, #annotationTable input[type="number"] {
+            width: 95%;
+            padding: 5px;
+            box-sizing: border-box;
+        }
+        .error-message {
+            color: red;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Greek Text Annotator</h1>
+    <p>Enter Greek text below. Lexical tokens will get a sequential ID. Punctuation (<code>. , : ;</code>) will be separated.</p>
+
+    <label for="inputText">Input Greek Text:</label><br>
+    <textarea id="inputText" placeholder="e.g., ἀποδέδοται, ὥστε ἐν τῷ νόμῳ.">περὶ τούτου γὰρ μόνου τοῦ ἀδικήματος καὶ ἐν δημοκρατίᾳ καὶ ὀλιγαρχίᾳ ἡ αὐτὴ τιμωρία τοῖς ἀσθενεστάτοις πρὸς τοὺς τὰ μέγιστα δυναμένους ἀποδέδοται, ὥστε τὸν χείριστον τῶν αὐτῶν τυγχάνειν τῷ βελτίστῳ:</textarea><br>
+
+    <button onclick="processText()">Analyze Text</button>
+
+    <h2>Formatted Output:</h2>
+    <div id="outputContainer">
+        <!-- Formatted text will appear here -->
+    </div>
+
+    <div id="mode1Controls" class="annotation-section">
+        <h3>Annotation Mode 1: Connectivity</h3>
+        <input type="checkbox" id="asyndetonCheckbox">
+        <label for="asyndetonCheckbox">Sentence illustrates asyndeton</label>
+        <p id="annotationPrompt" class="prompt">Please analyze a text first.</p>
+    </div>
+
+    <div id="mode2Container" class="annotation-section">
+        <h3>Annotation Mode 2: Clause/Phrase Analysis</h3>
+        <button id="addRowButton">Add New Annotation Row</button>
+        <table id="annotationTable">
+            <thead>
+                <tr>
+                    <th>Syntactic type</th>
+                    <th>Semantic type</th>
+                    <th>Depth</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="annotationTableBody">
+                <!-- Rows will be added here by JavaScript -->
+            </tbody>
+        </table>
+        <p id="mode2Status" class="prompt"></p>
+    </div>
+
+    <script>
+        // --- Global State & Constants ---
+        let classifiedTokens = [];
+        let isAsyndeton = false;
+        let connectingWordId = null;
+        let mode1Complete = false;
+
+        let mode2Annotations = []; // Stores confirmed annotations for Mode 2
+        let currentRowIndex = 0; // To give unique IDs to rows if needed for more complex ops
+
+        const SYNTACTIC_TYPES = ["independent clause", "subordinate clause", "circumstantial participle", "attributive participle", "indirect statement with infinitive", "indirect statement with participle"];
+        const SEMANTIC_TYPES = ["transitive", "intransitive", "linking"];
+
+        // --- DOM Elements ---
+        const outputContainer = document.getElementById('outputContainer');
+        const asyndetonCheckbox = document.getElementById('asyndetonCheckbox');
+        const annotationPrompt = document.getElementById('annotationPrompt');
+        const inputTextElement = document.getElementById('inputText');
+
+        const mode1Controls = document.getElementById('mode1Controls');
+        const mode2Container = document.getElementById('mode2Container');
+        const addRowButton = document.getElementById('addRowButton');
+        const annotationTableBody = document.getElementById('annotationTableBody');
+        const mode2Status = document.getElementById('mode2Status');
+
+
+        // --- Tokenization & Initial Formatting (Mode 0) ---
+        function analyzeGreekText(text) {
+            const punctuationChars = ['.', ',', ':', ';'];
+            const rawTokens = text.match(/[.,:;]|[^.,:;\s]+/g) || [];
+            const newClassifiedTokens = [];
+            let lexicalIdCounter = 1;
+
+            for (const rawToken of rawTokens) {
+                if (punctuationChars.includes(rawToken)) {
+                    newClassifiedTokens.push({ value: rawToken, class: 'punctuation' });
+                } else {
+                    newClassifiedTokens.push({ value: rawToken, class: 'lexical', id: lexicalIdCounter++ });
+                }
+            }
+            return newClassifiedTokens;
+        }
+
+        function formatTokensForDisplay(tokens) {
+            let htmlOutput = "";
+            for (let i = 0; i < tokens.length; i++) {
+                const token = tokens[i];
+                const nextToken = (i + 1 < tokens.length) ? tokens[i + 1] : null;
+
+                if (token.class === 'punctuation') {
+                    htmlOutput += token.value + " ";
+                } else if (token.class === 'lexical') {
+                    htmlOutput += `<span class="lexical-token" data-token-id="${token.id}">${token.value}<sup style="color: silver;">${token.id}</sup></span>`;
+                    if (!nextToken || nextToken.class !== 'punctuation') {
+                        htmlOutput += " ";
+                    }
+                }
+            }
+            return htmlOutput.trim();
+        }
+
+        // --- State Reset & UI Updates ---
+        function resetFullAnnotationState() {
+            // Mode 1 Reset
+            isAsyndeton = false;
+            connectingWordId = null;
+            mode1Complete = false;
+            asyndetonCheckbox.checked = false;
+            asyndetonCheckbox.disabled = true;
+            clearAllHighlights();
+
+            // Mode 2 Reset
+            mode2Annotations = [];
+            annotationTableBody.innerHTML = ''; // Clear table rows
+            currentRowIndex = 0;
+            mode2Status.textContent = '';
+            addRowButton.disabled = false; // Re-enable add row button
+
+            updateUIVisibility();
+            updateAnnotationPrompt();
+        }
+
+        function processText() {
+            const inputText = inputTextElement.value;
+            outputContainer.innerHTML = ""; // Clear previous output immediately
+
+            if (!inputText.trim()) {
+                outputContainer.innerHTML = "<em>Please enter some text to analyze.</em>";
+                classifiedTokens = [];
+                resetFullAnnotationState();
+                annotationPrompt.textContent = "Please analyze a text first.";
+                return;
+            }
+
+            resetFullAnnotationState(); // Reset states before new processing
+            classifiedTokens = analyzeGreekText(inputText);
+            const formattedText = formatTokensForDisplay(classifiedTokens);
+            outputContainer.innerHTML = formattedText;
+
+            asyndetonCheckbox.disabled = false; // Enable Mode 1 controls
+            updateAnnotationPrompt(); // Initial prompt for Mode 1
+            updateUIVisibility(); // Ensure Mode 2 is hidden initially
+        }
+
+        function updateUIVisibility() {
+            if (mode1Complete) {
+                mode2Container.style.display = 'block';
+                 // Check if there's an unconfirmed row before enabling addRowButton.
+                // For now, let's always enable it if Mode 1 is complete.
+                // We'll manage its disabled state based on active editing rows later if needed.
+                addRowButton.disabled = (annotationTableBody.querySelector('button.confirm-row-btn') !== null);
+
+            } else {
+                mode2Container.style.display = 'none';
+            }
+        }
+
+        function updateAnnotationPrompt() {
+            if (classifiedTokens.length === 0) {
+                annotationPrompt.textContent = "Please analyze a text first.";
+                asyndetonCheckbox.disabled = true;
+                mode1Complete = false; // Ensure mode1 is not complete
+                updateUIVisibility();
+                return;
+            }
+
+            asyndetonCheckbox.disabled = false;
+
+            if (mode1Complete) {
+                if (isAsyndeton) {
+                    annotationPrompt.textContent = "Mode 1 Complete: Asyndeton marked.";
+                } else if (connectingWordId !== null) {
+                    const connectingToken = classifiedTokens.find(t => t.id === connectingWordId && t.class === 'lexical');
+                    annotationPrompt.textContent = `Mode 1 Complete: '${connectingToken ? connectingToken.value : 'Unknown'}' selected as connecting word.`;
+                } else {
+                    annotationPrompt.textContent = "Mode 1 Complete. Proceed to Mode 2."; // Fallback, should be covered
+                }
+            } else {
+                annotationPrompt.textContent = "Mode 1: Please select the connecting word by clicking on it, or mark as asyndeton.";
+            }
+            updateUIVisibility(); // Call this to show/hide Mode 2
+        }
+
+        // --- Mode 1: Connectivity ---
+        function clearAllHighlights() {
+            document.querySelectorAll('.lexical-token.connecting-word').forEach(el => {
+                el.classList.remove('connecting-word');
+            });
+        }
+
+        function highlightConnectingWord() {
+            clearAllHighlights();
+            if (connectingWordId !== null && !isAsyndeton) {
+                const tokenElement = outputContainer.querySelector(`.lexical-token[data-token-id="${connectingWordId}"]`);
+                if (tokenElement) {
+                    tokenElement.classList.add('connecting-word');
+                }
+            }
+        }
+
+        asyndetonCheckbox.addEventListener('change', function(event) {
+            if (classifiedTokens.length === 0) return;
+
+            isAsyndeton = event.target.checked;
+            if (isAsyndeton) {
+                connectingWordId = null;
+                mode1Complete = true;
+                clearAllHighlights();
+            } else {
+                mode1Complete = (connectingWordId !== null); // Re-evaluate based on connecting word
+            }
+            highlightConnectingWord();
+            updateAnnotationPrompt();
+        });
+
+        outputContainer.addEventListener('click', function(event) {
+            if (classifiedTokens.length === 0 || isAsyndeton || mode1Complete) {
+                // If asyndeton is checked OR mode 1 already complete by selecting a word,
+                // don't allow changing the connecting word unless Mode 1 is reset (e.g. by unchecking asyndeton)
+                // The primary condition for interacting here is that Mode 1 is NOT YET complete.
+                if (mode1Complete && !isAsyndeton && !asyndetonCheckbox.checked) {
+                    // Allow changing connecting word if mode1 was completed by word, and asyndeton is not checked
+                } else if (isAsyndeton || (mode1Complete && connectingWordId !== null)) {
+                    return;
+                }
+            }
+
+
+            const clickedSpan = event.target.closest('.lexical-token');
+            if (clickedSpan) {
+                const tokenId = parseInt(clickedSpan.dataset.tokenId);
+
+                if (connectingWordId === tokenId) { // Clicked same word again
+                    connectingWordId = null;
+                    mode1Complete = false;
+                } else {
+                    connectingWordId = tokenId;
+                    mode1Complete = true;
+                }
+                asyndetonCheckbox.checked = false;
+                isAsyndeton = false;
+                highlightConnectingWord();
+                updateAnnotationPrompt();
+            }
+        });
+
+        // --- Mode 2: Clause/Phrase Analysis ---
+        addRowButton.addEventListener('click', function() {
+            if (this.disabled) return; // Should not happen if logic is correct but as a safeguard
+
+            const row = annotationTableBody.insertRow();
+            row.id = `annotation-row-${currentRowIndex}`;
+            currentRowIndex++;
+
+            const cellSyntactic = row.insertCell();
+            const cellSemantic = row.insertCell();
+            const cellDepth = row.insertCell();
+            const cellActions = row.insertCell();
+
+            // Syntactic Type Dropdown
+            const selectSyntactic = document.createElement('select');
+            selectSyntactic.innerHTML = `<option value="">--Select Syntactic--</option>` +
+                                        SYNTACTIC_TYPES.map(type => `<option value="${type}">${type}</option>`).join('');
+            cellSyntactic.appendChild(selectSyntactic);
+
+            // Semantic Type Dropdown
+            const selectSemantic = document.createElement('select');
+            selectSemantic.innerHTML = `<option value="">--Select Semantic--</option>` +
+                                       SEMANTIC_TYPES.map(type => `<option value="${type}">${type}</option>`).join('');
+            cellSemantic.appendChild(selectSemantic);
+
+            // Depth Input
+            const inputDepth = document.createElement('input');
+            inputDepth.type = 'number';
+            inputDepth.min = '0'; // Or 1, depending on convention
+            inputDepth.placeholder = 'e.g., 0';
+            cellDepth.appendChild(inputDepth);
+
+            // Confirm Button
+            const confirmBtn = document.createElement('button');
+            confirmBtn.textContent = 'Confirm';
+            confirmBtn.classList.add('confirm-row-btn');
+            confirmBtn.onclick = function() { confirmAnnotationRow(row); };
+            cellActions.appendChild(confirmBtn);
+
+            // Add error message placeholder for this row
+            const errorMsgElement = document.createElement('div');
+            errorMsgElement.classList.add('error-message');
+            // Prepend to the first cell or append to actions cell
+            cellSyntactic.appendChild(errorMsgElement); // Or a dedicated error cell
+
+            addRowButton.disabled = true; // Disable adding another row until this one is confirmed
+            mode2Status.textContent = "Please fill and confirm the new row.";
+        });
+
+        function confirmAnnotationRow(rowElement) {
+            const selectSyntactic = rowElement.querySelector('select:nth-child(1)'); // Assuming first select is syntactic
+            const selectSemantic = rowElement.querySelector('select:nth-child(2)'); // Assuming second select is semantic
+            const inputDepth = rowElement.querySelector('input[type="number"]');
+            const errorMsgElement = rowElement.querySelector('.error-message');
+            errorMsgElement.textContent = ''; // Clear previous error
+
+            const syntacticValue = selectSyntactic.value;
+            const semanticValue = selectSemantic.value;
+            const depthValue = inputDepth.value;
+
+            // Validation
+            let isValid = true;
+            let errors = [];
+            if (!syntacticValue) {
+                errors.push("Syntactic type is required.");
+                isValid = false;
+            }
+            if (!semanticValue) {
+                errors.push("Semantic type is required.");
+                isValid = false;
+            }
+            if (depthValue === '' || isNaN(parseInt(depthValue))) { // Check for empty or non-integer
+                errors.push("Depth must be a valid integer.");
+                isValid = false;
+            }
+
+            if (!isValid) {
+                errorMsgElement.innerHTML = errors.join('<br>');
+                mode2Status.textContent = "Please correct the errors in the current row.";
+                return;
+            }
+
+            // Store data
+            const annotationData = {
+                syntactic: syntacticValue,
+                semantic: semanticValue,
+                depth: parseInt(depthValue),
+                rowIndex: rowElement.id // Store for potential future reference
+            };
+            mode2Annotations.push(annotationData);
+            console.log("Mode 2 Annotation Added:", annotationData); // For debugging
+
+            // Update UI for the confirmed row
+            rowElement.cells[0].innerHTML = syntacticValue; // Syntactic
+            rowElement.cells[1].innerHTML = semanticValue; // Semantic
+            rowElement.cells[2].innerHTML = depthValue;    // Depth
+            rowElement.cells[3].innerHTML = 'Confirmed';   // Actions (remove button)
+
+            addRowButton.disabled = false; // Re-enable adding new rows
+            mode2Status.textContent = `Annotation for row ${mode2Annotations.length} confirmed. Add another?`;
+        }
+
+
+        // --- Initial Setup ---
+        window.onload = function() {
+            resetFullAnnotationState(); // Ensure controls are in a clean state
+            if (inputTextElement.value.trim()) {
+                 processText();
+            } else {
+                annotationPrompt.textContent = "Please analyze a text first.";
+                asyndetonCheckbox.disabled = true;
+            }
+            updateUIVisibility(); // Set initial visibility of Mode 2
+        };
+    </script>
+
+</body>
+</html>

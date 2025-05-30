@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Greek Token Annotator - Stage 5</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        textarea {
+            width: 90%;
+            min-height: 100px;
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            font-size: 1.1em;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        select {
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background-color: white;
+        }
+        #outputContainer {
+            border: 1px solid #ddd;
+            padding: 15px;
+            background-color: #f9f9f9;
+            min-height: 50px;
+            font-size: 1.1em;
+            line-height: 2.2;
+            margin-bottom: 20px;
+        }
+        .lexical-token {
+            cursor: pointer;
+            padding: 1px 3px;
+            border-radius: 3px;
+            transition: background-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            display: inline-block;
+            margin: 0 1px;
+        }
+        .lexical-token:hover {
+            box-shadow: 0 0 5px rgba(0,0,0,0.2);
+        }
+        .connecting-word {
+            background-color: yellow !important;
+            font-weight: bold;
+        }
+        .annotation-section {
+            margin-top: 15px;
+            padding: 15px;
+            border: 1px solid #ccc;
+            background-color: #f0f0f0;
+        }
+        .annotation-section h3 {
+            margin-top: 0;
+        }
+        .prompt {
+            margin-top: 10px;
+            font-style: italic;
+            color: #555;
+        }
+        #mode2Container, #mode3Container, #mode4Container {
+            display: none; /* Initially hidden */
+        }
+        #annotationTable, #relationsTable { /* Shared styling for tables */
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            table-layout: fixed; /* Helps with column widths */
+        }
+        #annotationTable th, #annotationTable td,
+        #relationsTable th, #relationsTable td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            word-break: break-word; /* Prevent long token values from breaking layout */
+        }
+        #annotationTable th, #relationsTable th {
+            background-color: #e9e9e9;
+        }
+        #annotationTable select, #annotationTable input[type="number"],
+        #relationsTable input[type="number"], #relationsTable input[type="text"] {
+            width: 95%;
+            padding: 5px;
+            box-sizing: border-box;
+        }
+        .error-message {
+            color: red;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        #verbalUnitSelectLabel, #mode4Status {
+            margin-right: 10px;
+        }
+        #mermaidGraphContainer {
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            background-color: white;
+            min-height: 100px; /* Placeholder height */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        /* Column widths for relationsTable */
+        #relationsTable col.ref-col { width: 10%; }
+        #relationsTable col.token-col { width: 20%; }
+        #relationsTable col.node-id-col { width: 10%; }
+        #relationsTable col.node-rel-col { width: 25%; }
+
+    </style>
+</head>
+<body>
+
+    <h1>Greek Text Annotator</h1>
+    <!-- ... (textarea, Analyze Text button, outputContainer - same as before) ... -->
+    <label for="inputText">Input Greek Text:</label><br>
+    <textarea id="inputText" placeholder="e.g., ἀποδέδοται, ὥστε ἐν τῷ νόμῳ.">περὶ τούτου γὰρ μόνου τοῦ ἀδικήματος καὶ ἐν δημοκρατίᾳ καὶ ὀλιγαρχίᾳ ἡ αὐτὴ τιμωρία τοῖς ἀσθενεστάτοις πρὸς τοὺς τὰ μέγιστα δυναμένους ἀποδέδοται, ὥστε τὸν χείριστον τῶν αὐτῶν τυγχάνειν τῷ βελτίστῳ:</textarea><br>
+    <button onclick="processText()">Analyze Text</button>
+    <h2>Formatted Output:</h2>
+    <div id="outputContainer"></div>
+
+
+    <div id="mode1Controls" class="annotation-section">
+        <h3>Annotation Mode 1: Connectivity</h3>
+        <input type="checkbox" id="asyndetonCheckbox">
+        <label for="asyndetonCheckbox">Sentence illustrates asyndeton</label>
+        <p id="annotationPrompt" class="prompt">Please analyze a text first.</p>
+    </div>
+
+    <div id="mode2Container" class="annotation-section">
+        <h3>Annotation Mode 2: Clause/Phrase Analysis (Verbal Units)</h3>
+        <button id="addRowButton">Add New Verbal Unit</button>
+        <table id="annotationTable">
+            <thead>
+                <tr>
+                    <th>Syntactic type</th>
+                    <th>Semantic type</th>
+                    <th>Depth</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="annotationTableBody"></tbody>
+        </table>
+        <p id="mode2Status" class="prompt"></p>
+    </div>
+
+    <div id="mode3Container" class="annotation-section">
+        <h3>Annotation Mode 3: Token Assignment to Verbal Units</h3>
+        <label for="verbalUnitSelect" id="verbalUnitSelectLabel">Select Verbal Unit:</label>
+        <select id="verbalUnitSelect">
+            <option value="">--Select a Verbal Unit--</option>
+        </select>
+        <p id="mode3Status" class="prompt">Complete Mode 1 & add at least one Verbal Unit in Mode 2.</p>
+    </div>
+
+    <div id="mode4Container" class="annotation-section">
+        <h3>Annotation Mode 4: Define Token Relations (within selected Verbal Unit)</h3>
+        <div id="mermaidGraphContainer">
+            <div id="mermaidGraph" class="mermaid">
+                <!-- Mermaid graph will be rendered here -->
+            </div>
+        </div>
+        <table id="relationsTable">
+            <colgroup>
+                <col class="ref-col">
+                <col class="token-col">
+                <col class="node-id-col">
+                <col class="node-rel-col">
+                <col class="node-id-col">
+                <col class="node-rel-col">
+            </colgroup>
+            <thead>
+                <tr>
+                    <th>Reference</th>
+                    <th>Token</th>
+                    <th>Node 1</th>
+                    <th>Node 1 relation</th>
+                    <th>Node 2</th>
+                    <th>Node 2 relation</th>
+                </tr>
+            </thead>
+            <tbody id="relationsTableBody">
+                <!-- Relation rows will be added here -->
+            </tbody>
+        </table>
+        <p id="mode4Status" class="prompt">Select a verbal unit with more than one token in Mode 3.</p>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({ startOnLoad: false, theme: 'default' });
+
+        // --- Global State & Constants (mostly same, with additions for Mode 4) ---
+        let classifiedTokens = [];
+        let isAsyndeton = false;
+        let connectingWordId = null;
+        let mode1Complete = false;
+
+        let mode2Annotations = [];
+        let mode2CurrentRowIndex = 0;
+
+        let mode3SelectedVerbalUnitId = null;
+
+        // SYNTACTIC_TYPES, SEMANTIC_TYPES (same)
+        const SYNTACTIC_TYPES = ["independent clause", "subordinate clause", "circumstantial participle", "attributive participle", "indirect statement with infinitive", "indirect statement with participle"];
+        const SEMANTIC_TYPES = ["transitive", "intransitive", "linking"];
+
+
+        // --- DOM Elements (additions for Mode 4) ---
+        const outputContainer = document.getElementById('outputContainer');
+        const asyndetonCheckbox = document.getElementById('asyndetonCheckbox');
+        const annotationPrompt = document.getElementById('annotationPrompt');
+        const inputTextElement = document.getElementById('inputText');
+
+        const mode1Controls = document.getElementById('mode1Controls');
+        const mode2Container = document.getElementById('mode2Container');
+        const addRowButton = document.getElementById('addRowButton');
+        const annotationTableBody = document.getElementById('annotationTableBody');
+        const mode2Status = document.getElementById('mode2Status');
+
+        const mode3Container = document.getElementById('mode3Container');
+        const verbalUnitSelect = document.getElementById('verbalUnitSelect');
+        const mode3Status = document.getElementById('mode3Status');
+
+        const mode4Container = document.getElementById('mode4Container');
+        const mermaidGraphDiv = document.getElementById('mermaidGraph');
+        const relationsTableBody = document.getElementById('relationsTableBody');
+        const mode4Status = document.getElementById('mode4Status');
+
+
+        // --- Helper: Random Color Generator (same) ---
+        function getRandomColorWithOpacity(opacity = 0.5) { /* ... same ... */
+            const r = Math.floor(Math.random() * 256);
+            const g = Math.floor(Math.random() * 256);
+            const b = Math.floor(Math.random() * 256);
+            return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+        }
+
+
+        // --- Tokenization & Initial Formatting (Mode 0) (same) ---
+        function analyzeGreekText(text) { /* ... same, includes verbalUnitId: null ... */
+            const punctuationChars = ['.', ',', ':', ';'];
+            const rawTokens = text.match(/[.,:;]|[^.,:;\s]+/g) || [];
+            const newClassifiedTokens = [];
+            let lexicalIdCounter = 1;
+
+            for (const rawToken of rawTokens) {
+                if (punctuationChars.includes(rawToken)) {
+                    newClassifiedTokens.push({ value: rawToken, class: 'punctuation' });
+                } else {
+                    newClassifiedTokens.push({ value: rawToken, class: 'lexical', id: lexicalIdCounter++, verbalUnitId: null });
+                }
+            }
+            return newClassifiedTokens;
+        }
+        function formatTokensForDisplay(tokens) { /* ... same ... */
+            let htmlOutput = "";
+            outputContainer.innerHTML = '';
+
+            for (let i = 0; i < tokens.length; i++) {
+                const token = tokens[i];
+                const nextToken = (i + 1 < tokens.length) ? tokens[i + 1] : null;
+
+                if (token.class === 'punctuation') {
+                    htmlOutput += token.value + " ";
+                } else if (token.class === 'lexical') {
+                    const span = document.createElement('span');
+                    span.classList.add('lexical-token');
+                    span.dataset.tokenId = token.id;
+                    span.textContent = token.value;
+
+                    const sup = document.createElement('sup');
+                    sup.style.color = "silver";
+                    sup.textContent = token.id;
+                    span.appendChild(sup);
+
+                    htmlOutput += span.outerHTML;
+
+                    if (!nextToken || nextToken.class !== 'punctuation') {
+                        htmlOutput += " ";
+                    }
+                }
+            }
+            outputContainer.innerHTML = htmlOutput.trim();
+            applyTokenHighlights();
+        }
+
+        // --- State Reset & UI Updates ---
+        function resetFullAnnotationState() {
+            // ... (Mode 1, 2, 3 resets - same) ...
+            isAsyndeton = false;
+            connectingWordId = null;
+            mode1Complete = false;
+            asyndetonCheckbox.checked = false;
+            asyndetonCheckbox.disabled = true;
+
+            mode2Annotations = [];
+            annotationTableBody.innerHTML = '';
+            mode2CurrentRowIndex = 0;
+            mode2Status.textContent = '';
+            addRowButton.disabled = true;
+
+            mode3SelectedVerbalUnitId = null;
+            verbalUnitSelect.innerHTML = '<option value="">--Select a Verbal Unit--</option>';
+            verbalUnitSelect.value = "";
+            mode3Status.textContent = 'Complete Mode 1 & add at least one Verbal Unit in Mode 2.';
+
+            // Mode 4 Reset
+            relationsTableBody.innerHTML = '';
+            mermaidGraphDiv.innerHTML = ''; // Clear previous graph
+            mode4Status.textContent = 'Select a verbal unit with >1 token in Mode 3.';
+
+            clearAllHighlights(); // Includes Mode 3 highlights
+            updateUIVisibility();
+            updateAnnotationPrompt();
+        }
+
+        function processText() { /* ... same ... */
+            const inputText = inputTextElement.value;
+            outputContainer.innerHTML = "";
+
+            if (!inputText.trim()) {
+                outputContainer.innerHTML = "<em>Please enter some text to analyze.</em>";
+                classifiedTokens = [];
+                resetFullAnnotationState();
+                annotationPrompt.textContent = "Please analyze a text first.";
+                return;
+            }
+
+            resetFullAnnotationState();
+            classifiedTokens = analyzeGreekText(inputText);
+            formatTokensForDisplay(classifiedTokens);
+
+            asyndetonCheckbox.disabled = false;
+            updateAnnotationPrompt();
+            updateUIVisibility();
+        }
+
+        function updateUIVisibility() {
+            // Mode 1 controls always visible if text processed
+            // Mode 2 visibility
+            mode2Container.style.display = mode1Complete ? 'block' : 'none';
+            addRowButton.disabled = !mode1Complete || (annotationTableBody.querySelector('button.confirm-row-btn') !== null);
+
+            // Mode 3 visibility
+            const mode2HasConfirmedAnnotations = mode2Annotations.some(vu => vu.confirmed);
+            mode3Container.style.display = mode1Complete && mode2HasConfirmedAnnotations ? 'block' : 'none';
+            verbalUnitSelect.disabled = !(mode1Complete && mode2HasConfirmedAnnotations);
+
+            // Mode 4 visibility
+            let showMode4 = false;
+            if (mode1Complete && mode3SelectedVerbalUnitId) {
+                const selectedVU = mode2Annotations.find(vu => vu.id === mode3SelectedVerbalUnitId);
+                if (selectedVU && selectedVU.assignedTokens.length > 1) {
+                    showMode4 = true;
+                }
+            }
+            mode4Container.style.display = showMode4 ? 'block' : 'none';
+            if(showMode4) {
+                const selectedVU = mode2Annotations.find(vu => vu.id === mode3SelectedVerbalUnitId);
+                populateRelationsTable(selectedVU); // Populate table when Mode 4 becomes visible
+                updateMermaidGraph(selectedVU);
+                mode4Status.textContent = `Editing relations for: ${selectedVU.syntactic} (Depth ${selectedVU.depth}).`;
+            } else if (mode3SelectedVerbalUnitId) { // VU selected but not enough tokens
+                 const selectedVU = mode2Annotations.find(vu => vu.id === mode3SelectedVerbalUnitId);
+                 if (selectedVU && selectedVU.assignedTokens.length <= 1) {
+                    mode4Status.textContent = 'Mode 4 requires the selected Verbal Unit to have more than one token assigned.';
+                 } else {
+                    mode4Status.textContent = 'Select a verbal unit with >1 token in Mode 3.';
+                 }
+            } else { // No VU selected or mode 1 not done
+                mode4Status.textContent = 'Select a verbal unit with >1 token in Mode 3.';
+            }
+
+            if (!mode2HasConfirmedAnnotations) {
+                 mode3Status.textContent = 'Complete Mode 1 & add at least one confirmed Verbal Unit in Mode 2.';
+            }
+        }
+
+
+        function updateAnnotationPrompt() { /* ... same ... */
+            if (classifiedTokens.length === 0) {
+                annotationPrompt.textContent = "Please analyze a text first.";
+                asyndetonCheckbox.disabled = true;
+                mode1Complete = false;
+                updateUIVisibility();
+                return;
+            }
+            asyndetonCheckbox.disabled = false;
+
+            if (mode1Complete) {
+                if (isAsyndeton) {
+                    annotationPrompt.textContent = "Mode 1 Complete: Asyndeton marked.";
+                } else if (connectingWordId !== null) {
+                    const token = classifiedTokens.find(t => t.id === connectingWordId && t.class === 'lexical');
+                    annotationPrompt.textContent = `Mode 1 Complete: '${token ? token.value : '?'}' selected.`;
+                }
+            } else {
+                annotationPrompt.textContent = "Mode 1: Select connecting word or mark asyndeton.";
+            }
+            updateUIVisibility();
+        }
+
+        // --- Mode 1: Connectivity (same) ---
+        function clearAllHighlights() { /* ... same ... */
+            document.querySelectorAll('.lexical-token.connecting-word').forEach(el => {
+                el.classList.remove('connecting-word');
+            });
+            applyTokenHighlights();
+        }
+        function highlightConnectingWord() { /* ... same ... */
+            document.querySelectorAll('.lexical-token.connecting-word').forEach(el => el.classList.remove('connecting-word'));
+            if (connectingWordId !== null && !isAsyndeton) {
+                const tokenElement = outputContainer.querySelector(`.lexical-token[data-token-id="${connectingWordId}"]`);
+                if (tokenElement) {
+                    tokenElement.classList.add('connecting-word');
+                }
+            }
+            applyTokenHighlights();
+        }
+        asyndetonCheckbox.addEventListener('change', function(event) { /* ... same ... */
+            if (classifiedTokens.length === 0) return;
+            isAsyndeton = event.target.checked;
+            if (isAsyndeton) {
+                connectingWordId = null;
+                mode1Complete = true;
+            } else {
+                mode1Complete = (connectingWordId !== null);
+            }
+            highlightConnectingWord();
+            updateAnnotationPrompt();
+        });
+
+        // Combined click handler for Mode 1 and Mode 3 token interactions
+        outputContainer.addEventListener('click', function(event) {
+            if (classifiedTokens.length === 0) return;
+            const clickedSpan = event.target.closest('.lexical-token');
+            if (!clickedSpan) return;
+            const tokenId = parseInt(clickedSpan.dataset.tokenId);
+
+            // Mode 3 Token Assignment Logic
+            if (mode1Complete && mode2Annotations.some(vu => vu.confirmed) && mode3SelectedVerbalUnitId) {
+                const selectedVU = mode2Annotations.find(vu => vu.id === mode3SelectedVerbalUnitId);
+                if (selectedVU) {
+                    const tokenIndexInVU = selectedVU.assignedTokens.indexOf(tokenId);
+                    const tokenToUpdateInClassified = classifiedTokens.find(t => t.id === tokenId && t.class === 'lexical');
+
+                    if (tokenIndexInVU > -1) { // Token is in this VU, remove it
+                        selectedVU.assignedTokens.splice(tokenIndexInVU, 1);
+                        if (tokenToUpdateInClassified) tokenToUpdateInClassified.verbalUnitId = null;
+                        // Also remove its relations if it's removed from VU
+                        if (selectedVU.tokenRelations && selectedVU.tokenRelations[tokenId]) {
+                            delete selectedVU.tokenRelations[tokenId];
+                        }
+                    } else { // Token not in this VU, add it
+                        // Remove from any other VU first
+                        mode2Annotations.forEach(vu => {
+                            if (vu.id !== selectedVU.id) {
+                                const idx = vu.assignedTokens.indexOf(tokenId);
+                                if (idx > -1) {
+                                     vu.assignedTokens.splice(idx, 1);
+                                     if (vu.tokenRelations && vu.tokenRelations[tokenId]) {
+                                         delete vu.tokenRelations[tokenId];
+                                     }
+                                 }
+                            }
+                        });
+                        selectedVU.assignedTokens.push(tokenId);
+                        if (tokenToUpdateInClassified) tokenToUpdateInClassified.verbalUnitId = selectedVU.id;
+                        // Initialize relations for this token in this VU
+                        if (!selectedVU.tokenRelations) selectedVU.tokenRelations = {};
+                        selectedVU.tokenRelations[tokenId] = { node1Id: null, node1Rel: '', node2Id: null, node2Rel: '' };
+                    }
+                    applyTokenHighlights();
+                    updateMode3Status(); // Updates token count, also calls updateUIVisibility
+                    updateUIVisibility(); // Crucial to show/hide Mode 4 and repopulate table
+                    return;
+                }
+            }
+
+            // Mode 1 Connecting Word Logic (if not handled by Mode 3)
+            if (!mode1Complete || (mode1Complete && isAsyndeton && !asyndetonCheckbox.checked)) {
+                 if (isAsyndeton) return;
+                if (connectingWordId === tokenId) {
+                    connectingWordId = null; mode1Complete = false;
+                } else {
+                    connectingWordId = tokenId; mode1Complete = true;
+                }
+                asyndetonCheckbox.checked = false; isAsyndeton = false;
+                highlightConnectingWord();
+                updateAnnotationPrompt();
+            }
+        });
+
+        // --- Mode 2: Clause/Phrase Analysis (Verbal Units) ---
+        addRowButton.addEventListener('click', function() { /* ... same, with newRowId ... */
+            const newRowId = `vu-row-${mode2CurrentRowIndex}`;
+            mode2CurrentRowIndex++;
+            const row = annotationTableBody.insertRow();
+            row.id = newRowId;
+
+            const cellSyntactic = row.insertCell();
+            const cellSemantic = row.insertCell();
+            const cellDepth = row.insertCell();
+            const cellActions = row.insertCell();
+
+            const selectSyntactic = document.createElement('select');
+            selectSyntactic.innerHTML = `<option value="">--Select Syntactic--</option>` + SYNTACTIC_TYPES.map(type => `<option value="${type}">${type}</option>`).join('');
+            cellSyntactic.appendChild(selectSyntactic);
+
+            const selectSemantic = document.createElement('select');
+            selectSemantic.innerHTML = `<option value="">--Select Semantic--</option>` + SEMANTIC_TYPES.map(type => `<option value="${type}">${type}</option>`).join('');
+            cellSemantic.appendChild(selectSemantic);
+
+            const inputDepth = document.createElement('input');
+            inputDepth.type = 'number'; inputDepth.min = '0'; inputDepth.placeholder = 'e.g., 0';
+            cellDepth.appendChild(inputDepth);
+
+            const confirmBtn = document.createElement('button');
+            confirmBtn.textContent = 'Confirm'; confirmBtn.classList.add('confirm-row-btn');
+            confirmBtn.onclick = function() { confirmAnnotationRow(row); };
+            cellActions.appendChild(confirmBtn);
+
+            const errorMsgElement = document.createElement('div');
+            errorMsgElement.classList.add('error-message');
+            cellSyntactic.appendChild(errorMsgElement);
+
+            addRowButton.disabled = true;
+            mode2Status.textContent = "Please fill and confirm the new verbal unit.";
+        });
+
+        function confirmAnnotationRow(rowElement) { /* ... Modified to init tokenRelations ... */
+            // ... (validation logic same)
+            const selectSyntactic = rowElement.querySelector('td:nth-child(1) select');
+            const selectSemantic = rowElement.querySelector('td:nth-child(2) select');
+            const inputDepth = rowElement.querySelector('td:nth-child(3) input[type="number"]');
+            const errorMsgElement = rowElement.querySelector('.error-message');
+            if(errorMsgElement) errorMsgElement.textContent = '';
+
+            const syntacticValue = selectSyntactic.value;
+            const semanticValue = selectSemantic.value;
+            const depthValue = inputDepth.value;
+
+            let isValid = true; let errors = [];
+            if (!syntacticValue) { errors.push("Syntactic type required."); isValid = false; }
+            if (!semanticValue) { errors.push("Semantic type required."); isValid = false; }
+            if (depthValue === '' || isNaN(parseInt(depthValue))) { errors.push("Depth must be integer."); isValid = false; }
+
+            if (!isValid) {
+                if(errorMsgElement) errorMsgElement.innerHTML = errors.join('<br>');
+                mode2Status.textContent = "Please correct errors in the current row.";
+                return;
+            }
+
+            const annotationData = {
+                id: rowElement.id,
+                syntactic: syntacticValue,
+                semantic: semanticValue,
+                depth: parseInt(depthValue),
+                color: getRandomColorWithOpacity(0.5),
+                assignedTokens: [],
+                tokenRelations: {}, // Initialize for Mode 4
+                confirmed: true
+            };
+            mode2Annotations.push(annotationData);
+
+            rowElement.cells[0].innerHTML = syntacticValue;
+            rowElement.cells[1].innerHTML = semanticValue;
+            rowElement.cells[2].innerHTML = depthValue;
+            rowElement.cells[3].innerHTML = `<span style="color: ${annotationData.color}; font-weight: bold;">■</span> Confirmed`;
+
+            addRowButton.disabled = false;
+            mode2Status.textContent = `Verbal Unit "${syntacticValue}" (Depth ${depthValue}) confirmed.`;
+            updateVerbalUnitSelector();
+            updateUIVisibility();
+        }
+
+        // --- Mode 3: Token Assignment ---
+        function updateVerbalUnitSelector() { /* ... same ... */
+            const previousSelection = verbalUnitSelect.value;
+            verbalUnitSelect.innerHTML = '<option value="">--Select a Verbal Unit--</option>';
+            mode2Annotations.filter(vu => vu.confirmed).forEach(vu => {
+                const option = document.createElement('option');
+                option.value = vu.id;
+                option.textContent = `VU ${mode2Annotations.findIndex(v => v.id === vu.id) + 1}: ${vu.syntactic} (D ${vu.depth})`;
+                verbalUnitSelect.appendChild(option);
+            });
+            if (mode2Annotations.some(vu => vu.id === previousSelection && vu.confirmed)) {
+                verbalUnitSelect.value = previousSelection;
+            } else {
+                verbalUnitSelect.value = "";
+                mode3SelectedVerbalUnitId = null;
+            }
+            updateMode3Status(); // updateUIVisibility is called within updateMode3Status or subsequent calls
+        }
+
+        verbalUnitSelect.addEventListener('change', function() {
+            mode3SelectedVerbalUnitId = this.value;
+            // Clear Mode 4 table if VU changes or no VU selected
+            relationsTableBody.innerHTML = '';
+            mermaidGraphDiv.innerHTML = '';
+            if (!this.value) { // No VU selected
+                 mode4Container.style.display = 'none';
+            }
+            applyTokenHighlights();
+            updateMode3Status(); // This will also call updateUIVisibility
+        });
+
+        function applyTokenHighlights() { /* ... same ... */
+            const tokenElements = outputContainer.querySelectorAll('.lexical-token');
+            tokenElements.forEach(el => {
+                const tokenId = parseInt(el.dataset.tokenId);
+                el.style.backgroundColor = 'transparent';
+                el.classList.remove('connecting-word');
+
+                const assignedVU = mode2Annotations.find(vu => vu.confirmed && vu.assignedTokens.includes(tokenId));
+                if (assignedVU) {
+                    el.style.backgroundColor = assignedVU.color;
+                }
+
+                if (connectingWordId === tokenId && !isAsyndeton) {
+                    el.classList.add('connecting-word');
+                }
+            });
+        }
+
+        function updateMode3Status() {
+            if (!mode1Complete || !mode2Annotations.some(vu => vu.confirmed)) {
+                mode3Status.textContent = 'Complete Mode 1 & add at least one confirmed Verbal Unit in Mode 2.';
+                verbalUnitSelect.disabled = true;
+                 updateUIVisibility(); // Update Mode 4 visibility
+                return;
+            }
+
+            verbalUnitSelect.disabled = false;
+            if (!mode3SelectedVerbalUnitId) {
+                mode3Status.textContent = "Select a Verbal Unit to assign tokens.";
+            } else {
+                const selectedVU = mode2Annotations.find(vu => vu.id === mode3SelectedVerbalUnitId);
+                if (selectedVU) {
+                    mode3Status.textContent = `Assigning to VU: ${selectedVU.syntactic}. Tokens: ${selectedVU.assignedTokens.length}.`;
+                } else {
+                     mode3Status.textContent = "Error: Selected VU not found.";
+                }
+            }
+            updateUIVisibility(); // This is crucial for Mode 4 visibility logic
+        }
+
+        // --- Mode 4: Define Token Relations ---
+        function populateRelationsTable(verbalUnit) {
+            relationsTableBody.innerHTML = ''; // Clear existing rows
+            if (!verbalUnit || !verbalUnit.assignedTokens || verbalUnit.assignedTokens.length === 0) {
+                mode4Status.textContent = 'No tokens assigned to this verbal unit for relation editing.';
+                return;
+            }
+
+            const validTokenIdsInVU = new Set(verbalUnit.assignedTokens);
+
+            verbalUnit.assignedTokens.forEach(tokenId => {
+                const tokenObj = classifiedTokens.find(t => t.id === tokenId);
+                if (!tokenObj) return; // Should not happen
+
+                // Ensure relations data exists for this token in this VU
+                if (!verbalUnit.tokenRelations) verbalUnit.tokenRelations = {};
+                if (!verbalUnit.tokenRelations[tokenId]) {
+                    verbalUnit.tokenRelations[tokenId] = { node1Id: null, node1Rel: '', node2Id: null, node2Rel: '' };
+                }
+                const relations = verbalUnit.tokenRelations[tokenId];
+
+                const row = relationsTableBody.insertRow();
+                row.insertCell().textContent = tokenObj.id; // Reference
+                row.insertCell().textContent = tokenObj.value; // Token
+
+                // Node 1 ID
+                const cellN1Id = row.insertCell();
+                const inputN1Id = document.createElement('input');
+                inputN1Id.type = 'number';
+                inputN1Id.value = relations.node1Id || '';
+                inputN1Id.placeholder = 'ID';
+                inputN1Id.oninput = (e) => handleRelationInputChange(verbalUnit, tokenId, 'node1Id', parseInt(e.target.value) || null, validTokenIdsInVU, e.target);
+                cellN1Id.appendChild(inputN1Id);
+
+                // Node 1 Relation
+                const cellN1Rel = row.insertCell();
+                const inputN1Rel = document.createElement('input');
+                inputN1Rel.type = 'text';
+                inputN1Rel.value = relations.node1Rel || '';
+                inputN1Rel.placeholder = 'Relation type';
+                inputN1Rel.oninput = (e) => handleRelationInputChange(verbalUnit, tokenId, 'node1Rel', e.target.value, validTokenIdsInVU);
+                cellN1Rel.appendChild(inputN1Rel);
+
+                // Node 2 ID
+                const cellN2Id = row.insertCell();
+                const inputN2Id = document.createElement('input');
+                inputN2Id.type = 'number';
+                inputN2Id.value = relations.node2Id || '';
+                inputN2Id.placeholder = 'ID';
+                inputN2Id.oninput = (e) => handleRelationInputChange(verbalUnit, tokenId, 'node2Id', parseInt(e.target.value) || null, validTokenIdsInVU, e.target);
+                cellN2Id.appendChild(inputN2Id);
+
+                // Node 2 Relation
+                const cellN2Rel = row.insertCell();
+                const inputN2Rel = document.createElement('input');
+                inputN2Rel.type = 'text';
+                inputN2Rel.value = relations.node2Rel || '';
+                inputN2Rel.placeholder = 'Relation type';
+                inputN2Rel.oninput = (e) => handleRelationInputChange(verbalUnit, tokenId, 'node2Rel', e.target.value, validTokenIdsInVU);
+                cellN2Rel.appendChild(inputN2Rel);
+            });
+        }
+
+        function handleRelationInputChange(verbalUnit, sourceTokenId, field, value, validTokenIdsInVU, inputElement = null) {
+            if (!verbalUnit.tokenRelations[sourceTokenId]) { // Should be initialized already
+                verbalUnit.tokenRelations[sourceTokenId] = { node1Id: null, node1Rel: '', node2Id: null, node2Rel: '' };
+            }
+
+            // Validate Node ID inputs
+            if ((field === 'node1Id' || field === 'node2Id') && value !== null) {
+                if (!validTokenIdsInVU.has(value) || value === sourceTokenId) { // Must be a valid token ID within the VU and not self-referential (for simplicity, can be changed)
+                    if (inputElement) inputElement.style.borderColor = 'red';
+                    // Do not update the data model for invalid ID to prevent graph errors
+                    // Or, set the model to null if invalid to clear a previous valid entry
+                    // For now, let's just visually indicate and not update, or update to null
+                    verbalUnit.tokenRelations[sourceTokenId][field] = null; // Clear if invalid
+                    // Potentially clear corresponding relation text too
+                    if (field === 'node1Id') verbalUnit.tokenRelations[sourceTokenId]['node1Rel'] = '';
+                    if (field === 'node2Id') verbalUnit.tokenRelations[sourceTokenId]['node2Rel'] = '';
+                    // Repopulate to reflect cleared relation text if needed, or handle in UI
+                    // populateRelationsTable(verbalUnit); // This might be too disruptive
+                    if (inputElement && field === 'node1Id') inputElement.parentElement.nextElementSibling.querySelector('input').value = '';
+                    if (inputElement && field === 'node2Id') inputElement.parentElement.nextElementSibling.querySelector('input').value = '';
+
+
+                } else {
+                    if (inputElement) inputElement.style.borderColor = ''; // Reset border
+                    verbalUnit.tokenRelations[sourceTokenId][field] = value;
+                }
+            } else {
+                 verbalUnit.tokenRelations[sourceTokenId][field] = value;
+            }
+
+
+            // If a Node ID is cleared, also clear its relation text
+            if (field === 'node1Id' && value === null) verbalUnit.tokenRelations[sourceTokenId]['node1Rel'] = '';
+            if (field === 'node2Id' && value === null) verbalUnit.tokenRelations[sourceTokenId]['node2Rel'] = '';
+
+
+            updateMermaidGraph(verbalUnit);
+        }
+
+        async function updateMermaidGraph(verbalUnit) {
+            if (!verbalUnit || !verbalUnit.tokenRelations) {
+                mermaidGraphDiv.innerHTML = 'graph BT'; // Empty graph
+                await mermaid.run({nodes: [mermaidGraphDiv]});
+                return;
+            }
+
+            let mermaidString = 'graph BT;\n'; // User example used BT
+            const nodesInGraph = new Set();
+            const edges = [];
+
+            for (const sourceTokenIdStr in verbalUnit.tokenRelations) {
+                const sourceTokenId = parseInt(sourceTokenIdStr);
+                const relations = verbalUnit.tokenRelations[sourceTokenId];
+                const sourceTokenObj = classifiedTokens.find(t => t.id === sourceTokenId);
+
+                if (!sourceTokenObj) continue;
+
+                let sourceAdded = false;
+                if (relations.node1Id && relations.node1Rel) {
+                    const target1TokenObj = classifiedTokens.find(t => t.id === relations.node1Id);
+                    if (target1TokenObj) {
+                        edges.push(`${sourceTokenId}["${sourceTokenObj.value}"] -- "${relations.node1Rel}" --> ${relations.node1Id}["${target1TokenObj.value}"]`);
+                        nodesInGraph.add(sourceTokenId);
+                        nodesInGraph.add(relations.node1Id);
+                        sourceAdded = true;
+                    }
+                }
+                if (relations.node2Id && relations.node2Rel) {
+                    const target2TokenObj = classifiedTokens.find(t => t.id === relations.node2Id);
+                    if (target2TokenObj) {
+                        edges.push(`${sourceTokenId}["${sourceTokenObj.value}"] -- "${relations.node2Rel}" --> ${relations.node2Id}["${target2TokenObj.value}"]`);
+                        nodesInGraph.add(sourceTokenId);
+                        nodesInGraph.add(relations.node2Id);
+                        sourceAdded = true;
+                    }
+                }
+            }
+
+            // Add node definitions for all nodes that are part of an edge, if not already implicitly defined by edges
+            // Mermaid typically handles this, but explicitly defining ensures labels are correct if a node is only a target.
+            // The current edge definition `${ID}["label"]` handles node definition implicitly.
+
+            if (edges.length > 0) {
+                mermaidString += edges.join(';\n') + ';';
+            } else if (verbalUnit.assignedTokens.length > 0) { // If VU has tokens but no relations defined
+                mermaidString += `  subgraph "Selected Verbal Unit Tokens (No Relations Defined)"\n direction BT\n`;
+                verbalUnit.assignedTokens.forEach(id => {
+                    const token = classifiedTokens.find(t => t.id === id);
+                    if(token) mermaidString += `    ${id}["${token.value}"];\n`;
+                });
+                mermaidString += `  end\n`;
+
+            } else {
+                mermaidString += '  empty["(No relations defined or no tokens in VU)"];\n';
+            }
+
+
+            try {
+                mermaidGraphDiv.innerHTML = mermaidString; // Put the raw string for mermaid to process
+                await mermaid.run({nodes: [mermaidGraphDiv]}); // Re-render with the new definition
+                mermaidGraphDiv.removeAttribute('data-processed'); // Force re-processing if needed
+            } catch (e) {
+                console.error("Mermaid rendering error:", e);
+                mermaidGraphDiv.innerHTML = `Error rendering graph. <pre>${mermaidString}</pre>`;
+            }
+        }
+
+
+        // --- Initial Setup ---
+        window.onload = function() {
+            resetFullAnnotationState();
+            if (inputTextElement.value.trim()) {
+                 processText();
+            } else {
+                annotationPrompt.textContent = "Please analyze a text first.";
+                asyndetonCheckbox.disabled = true;
+            }
+            updateUIVisibility();
+        };
+    </script>
+
+</body>
+</html>
