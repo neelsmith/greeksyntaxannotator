@@ -3,7 +3,12 @@
 > *Work in progress on a vibe-coded single-page web app for annotating the syntax of ancient Greek.*
 
 
+## Screen shot
+
 ![Screen shot](./annotator.png)
+
+
+## Summary
 
 **Status**: pre-release. Basic interactive functionality is complete to tokenize a string, annotate the identified tokens, and display the analysis in various forms, including a graph diagram that can be downloaded as a PNG file.
 
