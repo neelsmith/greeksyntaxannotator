@@ -2,7 +2,7 @@
 
 > *A vibe-coded single-page web app for annotating the syntax of ancient Greek.*
 
-> Implementing [this model of Greek syntax](https://neelsmith.github.io/GreekSyntax)
+> Implementing [this model of Greek syntax](https://neelsmith.github.io/GreekSyntax.jl/stable/)
 
 > *README to be updated ASAP*
 
