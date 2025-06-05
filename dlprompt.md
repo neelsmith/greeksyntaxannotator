@@ -1,0 +1,13 @@
+OK, let's try this. Add an option for the user to download the annotations data. We'll write data for sentences, verbal units, and tokens to a single plain-text file, with 3 blocks of delimited-text data.
+
+The first block will begin with a labelling line `#!sentences`, followed by a pipe-delimited header line `sentence|sequence|connector`. This will be followed by one line for each annotated sentence, with three pipe-delimited columns. The first column will be the identifier for the sentence in the form used in the user menu. The second column will be the sequence number of that sentence in the menu. The third column will be an identifier for the connecting word, or empty if the sentence illustrates asyndeton. The identifier to use is the `urn` property of the `Token` object that the user chose as the connecting word.
+**Example**: If the user chose a sentence identifier `urn:cts:greekLit:tlg0540.tlg001.omar_tokens:1.6.1-1.6.46a`, and it was the tenth sentence in the menu, then chose a token with text value `γὰρ` that was identified by the `urn` property `urn:cts:greekLit:tlg0540.tlg001.omar_tokens:1.6.2`, that would be represented with this line:
+
+`urn:cts:greekLit:tlg0540.tlg001.omar_tokens:1.6.1-1.6.46a|10|urn:cts:greekLit:tlg0540.tlg001.omar_tokens:1.6.2`
+
+
+The second block will begin with a labelling line `#!verbal_units`, then the pipe-delimited header line `vuid|syntactic_type|semantic_type|depth|sentence`, followed by one pipe-delimited line of data for each verbal unit. `vuid` is a unique id for this verbal unit; `syntactic_type`, `semantic_type`, and `depth` are the values of the columns "Syntactic type", "Semantic type",  and "Depth", respectively. `sentence` is the same ID value for the sentence that was used in the first block of sentences (and hence can be used by other applications to join verbal units and sentences)
+
+The third block will begin with a labelling line  `#!tokens`, then the pipe-delimited header line `urn|reference|tokentype|text|verbalunit|node1|node1relation|node2|node2relation`.  This will be followed by one line for each token assigned to a verbal unit. It is very important that for the first column record the value of the `urn` property of the `Token` object that was annotated. The remaining columns will have the values of the columns "Reference", "Token", "Node 1 (ID)", "Node 1 Relation", "Node 2 (ID)", and "Node 2 Relation" from the user-edited table.
+
+Please implement this.
