@@ -8,13 +8,11 @@
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
     <style>
         body {
-            font-family: sans-serif; 
+            font-family: sans-serif;
             line-height: 1.6;
             margin: 20px;
         }
-        #dataLoader, #sentenceSelector, #sentenceDisplayArea, 
-        #annotationMode1, #annotationMode2, #verbalUnitTokenGroupingArea, 
-        #annotationMode3, #annotationMode4, #downloadArea { 
+        #dataLoader, #sentenceSelector, #sentenceDisplayArea, #annotationMode1, #annotationMode2, #annotationMode3, #annotationMode4 {
             margin-bottom: 20px;
             padding: 10px;
             border: 1px solid #eee;
@@ -29,7 +27,6 @@
         input[type="text"], input[type="number"], select {
             padding: 5px;
             margin-right: 10px;
-            min-width: 100px; 
         }
         button {
             padding: 5px 10px;
@@ -46,7 +43,7 @@
             border-radius: 3px;
         }
         .lexical-token.connecting-word-highlight {
-            background-color: yellow; 
+            background-color: yellow; /* This will be the base color */
         }
         sup {
             color: silver;
@@ -91,48 +88,8 @@
         #tokenRelationsTable input[type="number"] {
             width: 60px;
         }
-        #tokenRelationsTable select { 
-            width: 150px;
-        }
-        #selectedSentenceIndexDisplay {
-            margin-top: 5px;
-            font-size: 0.9em;
-            color: #666;
-        }
-        
-        /* Verbal Unit Token Grouping Styles */
-        #verbalUnitTokenGroupingDisplay {
-            font-size: 1.2em; 
-            line-height: 1.8; /* Increased line-height for underlines */
-        }
-        .vu-line { 
-            margin-bottom: 3px; 
-        }
-        .indent-depth-0 { margin-left: 0em; }
-        .indent-depth-1 { margin-left: 1.5em; } 
-        .indent-depth-2 { margin-left: 3.0em; }
-        .indent-depth-3 { margin-left: 4.5em; }
-        .indent-depth-4 { margin-left: 6.0em; }
-        .indent-depth-5 { margin-left: 7.5em; }
-
-        /* Styles for Node 1 Relation based formatting */
-        .unit-verb-box {
-            border: 1px solid black;
-            padding: 0 2px; /* Small padding inside the box */
-            border-radius: 2px;
-            display: inline-block; /* To make border wrap content */
-        }
-        .subject-underline {
-            text-decoration: underline;
-        }
-        .direct-object-wavy-underline {
-            text-decoration: underline wavy; /* Standard wavy underline */
-            /* For browsers not supporting 'wavy', this might fallback or need a more complex SVG/border-image solution */
-        }
-
-
-        #downloadFilenameInput { 
-            width: 250px;
+        #tokenRelationsTable input[type="text"] {
+            width: 100px;
         }
     </style>
 </head>
@@ -149,7 +106,11 @@
     <div id="sentenceSelector" class="hidden">
         <label for="sentenceDropdown">Select Sentence:</label>
         <select id="sentenceDropdown"></select>
-        <p id="selectedSentenceIndexDisplay"></p> 
+    </div>
+
+    <div id="sentenceDisplayArea" class="hidden">
+        <h2>Sentence Text</h2>
+        <div id="sentenceDisplay" style="font-size: 1.2em; line-height: 2;"></div>
     </div>
 
     <div id="annotationMode1" class="hidden">
@@ -158,7 +119,7 @@
         <p id="mode1Instruction">If not <em>asyndeton</em>, please click the <em>connecting word</em> in the sentence above.</p>
         <p id="mode1CompletionStatus" style="font-weight: bold;"></p>
     </div>
-    
+
     <div id="annotationMode2" class="hidden">
         <h2>Annotation Mode 2: Verbal Units</h2>
         <button id="addVerbalUnitBtn">Add New Verbal Unit</button>
@@ -176,16 +137,6 @@
             <thead><tr><th>Syntactic type</th><th>Semantic type</th><th>Depth</th><th>Tokens Assigned</th><th>Actions</th></tr></thead>
             <tbody id="verbalUnitsTableBody"></tbody>
         </table>
-    </div>
-
-    <div id="sentenceDisplayArea" class="hidden"> 
-        <h2>Sentence Text</h2>
-        <div id="sentenceDisplay" style="font-size: 1.2em; line-height: 2;"></div>
-    </div>
-
-    <div id="verbalUnitTokenGroupingArea" class="hidden"> 
-        <h2>Verbal Unit Token Grouping</h2>
-        <div id="verbalUnitTokenGroupingDisplay"></div> 
     </div>
 
     <div id="annotationMode3" class="hidden">
@@ -219,14 +170,6 @@
          <p id="mode4Status" style="font-weight: bold;"></p>
     </div>
 
-    <div id="downloadArea" class="hidden"> 
-        <h2>Download Annotations</h2>
-        <label for="downloadFilenameInput">Filename:</label>
-        <input type="text" id="downloadFilenameInput" value="greek_annotations.cex">
-        <button id="downloadAnnotationsButton">Download Data</button>
-    </div>
-
-
     <script>
         mermaid.initialize({ startOnLoad: false, theme: 'default' });
 
@@ -236,18 +179,13 @@
         let currentSentenceURN = null;
         let annotations = {}; 
         let currentSelectedVerbalUnitIndex = -1; 
-        let sentenceUrnMap = {}; 
 
-        // UI Elements 
+        // UI Elements (IDs are fetched here)
         const cexUrlInput = document.getElementById('cexUrl');
         const loadButton = document.getElementById('loadButton');
         const statusMessage = document.getElementById('statusMessage');
-        const downloadAreaDiv = document.getElementById('downloadArea'); 
-        const downloadFilenameInput = document.getElementById('downloadFilenameInput'); 
-        const downloadAnnotationsButton = document.getElementById('downloadAnnotationsButton'); 
         const sentenceSelectorDiv = document.getElementById('sentenceSelector');
         const sentenceDropdown = document.getElementById('sentenceDropdown');
-        const selectedSentenceIndexDisplay = document.getElementById('selectedSentenceIndexDisplay'); 
         const sentenceDisplayAreaDiv = document.getElementById('sentenceDisplayArea');
         const sentenceDisplay = document.getElementById('sentenceDisplay');
         const annotationMode1Div = document.getElementById('annotationMode1');
@@ -263,8 +201,6 @@
         const confirmNewVuBtn = document.getElementById('confirmNewVuBtn');
         const cancelNewVuBtn = document.getElementById('cancelNewVuBtn');
         const verbalUnitsTableBody = document.getElementById('verbalUnitsTableBody');
-        const verbalUnitTokenGroupingArea = document.getElementById('verbalUnitTokenGroupingArea'); 
-        const verbalUnitTokenGroupingDisplay = document.getElementById('verbalUnitTokenGroupingDisplay'); 
         const annotationMode3Div = document.getElementById('annotationMode3');
         const verbalUnitSelectForAssignment = document.getElementById('verbalUnitSelectForAssignment');
         const mode3Status = document.getElementById('mode3Status');
@@ -276,17 +212,6 @@
 
         const SYNTACTIC_TYPES = ["independent clause", "subordinate clause", "circumstantial participle", "attributive participle", "indirect statement with infinitive", "indirect statement with participle"];
         const SEMANTIC_TYPES = ["transitive", "intransitive", "linking"];
-        const TOKEN_RELATION_VALUES = [
-            "conjunction", "subordinate conjunction", "relative pronoun", "unit verb", 
-            "predicate", "subject", "direct object", "object of preposition", 
-            "direct address", "complementary infinitive", "supplementary participle", 
-            "modal particle", "adverbial", "attributive", "article", "pronoun", 
-            "dative", "genitive"
-        ];
-        const ASYNDETON_NODE_ID = 0;
-        const ASYNDETON_NODE_TEXT = "asyndeton";
-        const ASYNDETON_NODE_URN = "internal:asyndeton_node";
-
 
         SYNTACTIC_TYPES.forEach(type => newVuSyntacticTypeSelect.appendChild(new Option(type, type)));
         SEMANTIC_TYPES.forEach(type => newVuSemanticTypeSelect.appendChild(new Option(type, type)));
@@ -294,7 +219,6 @@
         loadButton.addEventListener('click', loadCEXData);
         sentenceDropdown.addEventListener('change', handleSentenceChange);
         asyndetonCheckbox.addEventListener('change', handleAsyndetonChange);
-        downloadAnnotationsButton.addEventListener('click', handleDownloadAnnotations); 
         addVerbalUnitBtn.addEventListener('click', () => {
             newVerbalUnitForm.classList.remove('hidden');
             addVerbalUnitBtn.classList.add('hidden');
@@ -362,17 +286,10 @@
                 const sentenceURNs = greeklib.sentences(ctsLines);
 
                 sentenceDropdown.innerHTML = '<option value="">-- Select a sentence --</option>';
-                sentenceUrnMap = {}; 
-                sentenceURNs.forEach((urn, index) => {
-                    sentenceDropdown.appendChild(new Option(urn, urn));
-                    sentenceUrnMap[urn] = index + 1; 
-                });
+                sentenceURNs.forEach(urn => sentenceDropdown.appendChild(new Option(urn, urn)));
 
                 sentenceSelectorDiv.classList.remove('hidden');
-                downloadAreaDiv.classList.add('hidden'); 
-                selectedSentenceIndexDisplay.textContent = ''; 
-                [sentenceDisplayAreaDiv, annotationMode1Div, annotationMode2Div, verbalUnitTokenGroupingArea, 
-                 annotationMode3Div, annotationMode4Div].forEach(el => el.classList.add('hidden'));
+                [sentenceDisplayAreaDiv, annotationMode1Div, annotationMode2Div, annotationMode3Div, annotationMode4Div].forEach(el => el.classList.add('hidden'));
                 updateStatus(`Found ${allTokens.length} tokens and ${sentenceURNs.length} sentences. Please select a sentence.`);
             } catch (error) {
                 console.error('Error processing CTS data:', error);
@@ -384,34 +301,29 @@
             currentSentenceURN = sentenceDropdown.value;
             currentSelectedVerbalUnitIndex = -1; 
 
-            if (!currentSentenceURN) { 
-                [sentenceDisplayAreaDiv, annotationMode1Div, annotationMode2Div, verbalUnitTokenGroupingArea, 
-                 annotationMode3Div, annotationMode4Div, downloadAreaDiv].forEach(el => el.classList.add('hidden'));
+            if (!currentSentenceURN) {
+                [sentenceDisplayAreaDiv, annotationMode1Div, annotationMode2Div, annotationMode3Div, annotationMode4Div].forEach(el => el.classList.add('hidden'));
                 sentenceDisplay.innerHTML = '';
                 currentSentenceTokens = [];
-                selectedSentenceIndexDisplay.textContent = ''; 
                 return;
             }
-            
-            selectedSentenceIndexDisplay.textContent = `Selected sentence index: ${sentenceUrnMap[currentSentenceURN]}`;
 
             const currentAnn = getCurrentSentenceAnnotation(); 
             currentSentenceTokens = greeklib.tokens(currentSentenceURN, allTokens);
             
             displaySentenceTokens(); 
-            sentenceDisplayAreaDiv.classList.remove('hidden'); 
+            sentenceDisplayAreaDiv.classList.remove('hidden');
             
             annotationMode1Div.classList.remove('hidden');
             asyndetonCheckbox.checked = currentAnn.asyndeton === true;
             if (currentAnn.connectingWordURN) { 
                 const cwToken = currentSentenceTokens.find(t => t.urn === currentAnn.connectingWordURN && t.type === 'lexical');
                 if (cwToken) {
-                    ensureTokenRelationEntry(currentAnn, cwToken.sequence, cwToken.text, cwToken.urn, cwToken.type);
+                    ensureTokenRelationEntry(currentAnn, cwToken.sequence, cwToken.text);
                 }
             }
             
             updateMode1StateAndProceed();
-            checkAndShowVerbalUnitTokenGrouping(); 
         }
         
         function displaySentenceTokens() {
@@ -430,16 +342,23 @@
                     tokenTextSpan.dataset.sequence = token.sequence; 
                     tokenTextSpan.onclick = () => handleLexicalTokenClick(token.urn, token.sequence);
 
+                    // Reset highlights: remove class and inline background image
                     tokenTextSpan.classList.remove('connecting-word-highlight');
                     tokenTextSpan.style.backgroundImage = 'none';
+                    // DO NOT set tokenTextSpan.style.backgroundColor = 'transparent' here,
+                    // as that would override the class's background-color.
 
                     if (currentAnn) {
+                        // Apply connecting word highlight if applicable
                         if (token.urn === currentAnn.connectingWordURN) {
-                            tokenTextSpan.classList.add('connecting-word-highlight'); 
+                            tokenTextSpan.classList.add('connecting-word-highlight'); // Sets background-color: yellow via class
                         }
+
+                        // Apply verbal unit highlight if applicable
                         if (currentAnn.verbalUnits) {
                             for (const vu of currentAnn.verbalUnits) {
                                 if (vu.assignedTokenURNs.includes(token.urn)) {
+                                    // backgroundImage layers on top of current background-color (yellow from class or transparent default)
                                     tokenTextSpan.style.backgroundImage = `linear-gradient(${vu.color}, ${vu.color})`;
                                     tokenTextSpan.style.backgroundRepeat = 'no-repeat'; 
                                     break; 
@@ -472,52 +391,26 @@
         function handleAsyndetonChange() {
             const ann = getCurrentSentenceAnnotation();
             if (!ann) return;
-            
-            const wasAsyndeton = ann.asyndeton;
             ann.asyndeton = asyndetonCheckbox.checked;
-
             if (ann.asyndeton) {
                 ann.connectingWordURN = null; 
-                ensureTokenRelationEntry(ann, ASYNDETON_NODE_ID, ASYNDETON_NODE_TEXT, ASYNDETON_NODE_URN, "internal");
-            } else { 
-                if (wasAsyndeton) { 
-                    if (ann.tokenRelations && ann.tokenRelations[ASYNDETON_NODE_ID]) {
-                        delete ann.tokenRelations[ASYNDETON_NODE_ID];
-                    }
-                    for (const seq in ann.tokenRelations) {
-                        const rel = ann.tokenRelations[seq];
-                        if (rel.node1Sequence === ASYNDETON_NODE_ID) {
-                            rel.node1Sequence = null;
-                            rel.node1Rel = null;
-                        }
-                        if (rel.node2Sequence === ASYNDETON_NODE_ID) {
-                            rel.node2Sequence = null;
-                            rel.node2Rel = null;
-                        }
-                    }
-                }
             }
             displaySentenceTokens(); 
-            updateMode1StateAndProceed(); 
-            checkAndShowVerbalUnitTokenGrouping();
+            updateMode1StateAndProceed();
         }
 
-        function ensureTokenRelationEntry(ann, tokenSequence, tokenText, tokenUrn, tokenType) {
+        function ensureTokenRelationEntry(ann, tokenSequence, tokenText) {
             if (!ann.tokenRelations) {
                 ann.tokenRelations = {};
             }
             if (!ann.tokenRelations[tokenSequence]) {
                 ann.tokenRelations[tokenSequence] = {
                     tokenText: tokenText,
-                    originalUrn: tokenUrn, 
-                    originalType: tokenType, 
                     node1Sequence: null, node1Rel: null,
                     node2Sequence: null, node2Rel: null
                 };
             } else {
                 ann.tokenRelations[tokenSequence].tokenText = tokenText;
-                ann.tokenRelations[tokenSequence].originalUrn = tokenUrn;
-                ann.tokenRelations[tokenSequence].originalType = tokenType;
             }
         }
 
@@ -535,53 +428,33 @@
             if (mode1Pending && !asyndetonCheckbox.checked) {
                 ann.connectingWordURN = urn;
                 ann.asyndeton = false; 
-                asyndetonCheckbox.checked = false; 
-                if (ann.tokenRelations && ann.tokenRelations[ASYNDETON_NODE_ID]) {
-                    delete ann.tokenRelations[ASYNDETON_NODE_ID];
-                     for (const seq in ann.tokenRelations) {
-                        const rel = ann.tokenRelations[seq];
-                        if (rel.node1Sequence === ASYNDETON_NODE_ID) { rel.node1Sequence = null; rel.node1Rel = null;}
-                        if (rel.node2Sequence === ASYNDETON_NODE_ID) { rel.node2Sequence = null; rel.node2Rel = null;}
-                    }
-                }
-                ensureTokenRelationEntry(ann, sequence, clickedTokenObject.text, clickedTokenObject.urn, clickedTokenObject.type);
+                asyndetonCheckbox.checked = false;
+                ensureTokenRelationEntry(ann, sequence, clickedTokenObject.text);
                 displaySentenceTokens();
                 updateMode1StateAndProceed();
                 return; 
             }
 
             if (!annotationMode3Div.classList.contains('hidden') && currentSelectedVerbalUnitIndex !== -1) {
-                const currentVU = ann.verbalUnits[currentSelectedVerbalUnitIndex];
-                
-                for (let i = 0; i < ann.verbalUnits.length; i++) {
-                    if (i === currentSelectedVerbalUnitIndex) continue; 
-                    const otherVU = ann.verbalUnits[i];
-                    const tokenIndexInOtherVU = otherVU.assignedTokenURNs.indexOf(urn);
-                    if (tokenIndexInOtherVU > -1) {
-                        otherVU.assignedTokenURNs.splice(tokenIndexInOtherVU, 1);
-                    }
-                }
+                const selectedVU = ann.verbalUnits[currentSelectedVerbalUnitIndex];
+                const tokenIndexInVU = selectedVU.assignedTokenURNs.indexOf(urn);
 
-                const tokenIndexInCurrentVU = currentVU.assignedTokenURNs.indexOf(urn);
-                if (tokenIndexInCurrentVU > -1) {
-                    currentVU.assignedTokenURNs.splice(tokenIndexInCurrentVU, 1);
-                } else {
-                    currentVU.assignedTokenURNs.push(urn);
-                    ensureTokenRelationEntry(ann, sequence, clickedTokenObject.text, clickedTokenObject.urn, clickedTokenObject.type);
+                if (tokenIndexInVU > -1) { 
+                    selectedVU.assignedTokenURNs.splice(tokenIndexInVU, 1);
+                } else { 
+                    selectedVU.assignedTokenURNs.push(urn);
+                    ensureTokenRelationEntry(ann, sequence, clickedTokenObject.text);
                 }
-                
                 renderVerbalUnitsTable(); 
                 displaySentenceTokens(); 
                 checkAndEnableMode4(); 
-                checkAndShowVerbalUnitTokenGrouping();
             }
         }
         
         function updateMode1StateAndProceed() {
             const ann = getCurrentSentenceAnnotation();
             if (!ann) {
-                [annotationMode1Div, annotationMode2Div, verbalUnitTokenGroupingArea, 
-                 annotationMode3Div, annotationMode4Div, downloadAreaDiv].forEach(el => el.classList.add('hidden'));
+                [annotationMode1Div, annotationMode2Div, annotationMode3Div, annotationMode4Div].forEach(el => el.classList.add('hidden'));
                 mode1CompletionStatus.textContent = '';
                 return;
             }
@@ -592,12 +465,11 @@
             if (ann.asyndeton === true) {
                 mode1Instruction.classList.add('hidden');
                 mode1CompletionStatus.textContent = "Mode 1 (Asyndeton) complete.";
-                ensureTokenRelationEntry(ann, ASYNDETON_NODE_ID, ASYNDETON_NODE_TEXT, ASYNDETON_NODE_URN, "internal"); 
             } else if (ann.asyndeton === false && ann.connectingWordURN) {
                 mode1Instruction.classList.add('hidden');
                 mode1CompletionStatus.textContent = "Mode 1 (Connecting Word) complete.";
                 const cwToken = currentSentenceTokens.find(t => t.urn === ann.connectingWordURN && t.type === 'lexical');
-                if(cwToken) ensureTokenRelationEntry(ann, cwToken.sequence, cwToken.text, cwToken.urn, cwToken.type);
+                if(cwToken) ensureTokenRelationEntry(ann, cwToken.sequence, cwToken.text);
 
             } else { 
                 asyndetonCheckbox.checked = false; 
@@ -609,12 +481,9 @@
             if (mode1Completed) {
                 initializeMode2UI();
             } else {
-                [annotationMode2Div, verbalUnitTokenGroupingArea, 
-                 annotationMode3Div, annotationMode4Div, downloadAreaDiv].forEach(el => el.classList.add('hidden'));
-                 verbalUnitTokenGroupingDisplay.innerHTML = ''; 
+                [annotationMode2Div, annotationMode3Div, annotationMode4Div].forEach(el => el.classList.add('hidden'));
             }
             checkAndEnableMode4(); 
-            checkAndShowVerbalUnitTokenGrouping();
         }
 
         function initializeMode2UI() {
@@ -625,7 +494,6 @@
             addVerbalUnitBtn.classList.remove('hidden');
             renderVerbalUnitsTable();
             checkAndEnableMode3(); 
-            checkAndShowVerbalUnitTokenGrouping();
         }
 
         function renderVerbalUnitsTable() {
@@ -669,7 +537,6 @@
             });
             renderVerbalUnitsTable();
             checkAndEnableMode3(); 
-            checkAndShowVerbalUnitTokenGrouping();
 
             newVerbalUnitForm.classList.add('hidden');
             addVerbalUnitBtn.classList.remove('hidden');
@@ -691,7 +558,6 @@
             checkAndEnableMode3(); 
             displaySentenceTokens(); 
             checkAndEnableMode4(); 
-            checkAndShowVerbalUnitTokenGrouping();
         }
 
         function checkAndEnableMode3() {
@@ -712,7 +578,6 @@
             }
             displaySentenceTokens(); 
             checkAndEnableMode4(); 
-            checkAndShowVerbalUnitTokenGrouping();
         }
 
         function populateVerbalUnitSelectForAssignment() {
@@ -738,106 +603,20 @@
             currentSelectedVerbalUnitIndex = parseInt(verbalUnitSelectForAssignment.value, 10);
         }
 
-        function findVerbalUnitForToken(tokenURN, verbalUnits) {
-            if (!verbalUnits) return null;
-            for (const vu of verbalUnits) {
-                if (vu.assignedTokenURNs.includes(tokenURN)) return vu;
-            }
-            return null;
-        }
-
-        function renderVerbalUnitTokenGrouping() {
-            verbalUnitTokenGroupingDisplay.innerHTML = '';
-            const ann = getCurrentSentenceAnnotation();
-            if (!ann || !currentSentenceTokens || currentSentenceTokens.length === 0) return;
-
-            let currentLineDiv = null;
-            let previousTokenVU_forGrouping = null; 
-
-            const sortedTokens = [...currentSentenceTokens].sort((a, b) => a.sequence - b.sequence);
-
-            for (const token of sortedTokens) {
-                if (token.type !== 'lexical') continue;
-                if (ann.connectingWordURN && token.urn === ann.connectingWordURN) continue;
-
-                const currentTokenVU = findVerbalUnitForToken(token.urn, ann.verbalUnits);
-
-                if (currentTokenVU) {
-                    if (!currentLineDiv || previousTokenVU_forGrouping !== currentTokenVU) {
-                        currentLineDiv = document.createElement('div');
-                        currentLineDiv.classList.add('vu-line'); 
-                        currentLineDiv.classList.add(`indent-depth-${currentTokenVU.depth}`); 
-                        verbalUnitTokenGroupingDisplay.appendChild(currentLineDiv);
-                    } else {
-                        currentLineDiv.appendChild(document.createTextNode(' '));
-                    }
-                    
-                    // Create a span for the token text to apply specific styles
-                    const tokenTextSpan = document.createElement('span');
-                    tokenTextSpan.textContent = token.text;
-
-                    // Apply styles based on node1Rel of this token
-                    if (ann.tokenRelations && ann.tokenRelations[token.sequence]) {
-                        const relData = ann.tokenRelations[token.sequence];
-                        if (relData.node1Rel === 'unit verb') {
-                            tokenTextSpan.classList.add('unit-verb-box');
-                        } else if (relData.node1Rel === 'subject') {
-                            tokenTextSpan.classList.add('subject-underline');
-                        } else if (relData.node1Rel === 'direct object') {
-                            tokenTextSpan.classList.add('direct-object-wavy-underline');
-                        }
-                    }
-                    currentLineDiv.appendChild(tokenTextSpan);
-                    previousTokenVU_forGrouping = currentTokenVU;
-                } else {
-                    previousTokenVU_forGrouping = null; 
-                    currentLineDiv = null; 
-                }
-            }
-        }
-
-        function checkAndShowVerbalUnitTokenGrouping() {
-            const ann = getCurrentSentenceAnnotation();
-            const mode2Visible = !annotationMode2Div.classList.contains('hidden');
-            let hasAssignedTokens = false;
-
-            if (ann && ann.verbalUnits) {
-                for (const vu of ann.verbalUnits) {
-                    if (vu.assignedTokenURNs.length > 0) {
-                        hasAssignedTokens = true;
-                        break;
-                    }
-                }
-            }
-
-            if (mode2Visible && hasAssignedTokens) {
-                verbalUnitTokenGroupingArea.classList.remove('hidden');
-                renderVerbalUnitTokenGrouping();
-            } else {
-                verbalUnitTokenGroupingArea.classList.add('hidden');
-                verbalUnitTokenGroupingDisplay.innerHTML = '';
-            }
-        }
-
-
         function getMode4RelevantTokens(ann) {
             const relevantTokensData = []; 
             const includedSequences = new Set();
 
             if (!ann) return relevantTokensData;
 
-            if (ann.asyndeton === true) {
-                relevantTokensData.push({ sequence: ASYNDETON_NODE_ID, text: ASYNDETON_NODE_TEXT, urn: ASYNDETON_NODE_URN, type: "internal" });
-                includedSequences.add(ASYNDETON_NODE_ID);
-                ensureTokenRelationEntry(ann, ASYNDETON_NODE_ID, ASYNDETON_NODE_TEXT, ASYNDETON_NODE_URN, "internal");
-            }
-
             if (ann.connectingWordURN) {
                 const cwToken = currentSentenceTokens.find(t => t.urn === ann.connectingWordURN && t.type === 'lexical');
-                if (cwToken && !includedSequences.has(cwToken.sequence)) {
-                    relevantTokensData.push({ sequence: cwToken.sequence, text: cwToken.text, urn: cwToken.urn, type: cwToken.type });
-                    includedSequences.add(cwToken.sequence);
-                    ensureTokenRelationEntry(ann, cwToken.sequence, cwToken.text, cwToken.urn, cwToken.type);
+                if (cwToken) {
+                    if (!includedSequences.has(cwToken.sequence)) {
+                        relevantTokensData.push({ sequence: cwToken.sequence, text: cwToken.text, urn: cwToken.urn });
+                        includedSequences.add(cwToken.sequence);
+                        ensureTokenRelationEntry(ann, cwToken.sequence, cwToken.text);
+                    }
                 }
             }
 
@@ -845,60 +624,38 @@
                 ann.verbalUnits.forEach(vu => {
                     vu.assignedTokenURNs.forEach(urn => {
                         const token = currentSentenceTokens.find(t => t.urn === urn && t.type === 'lexical');
-                        if (token && !includedSequences.has(token.sequence)) {
-                            relevantTokensData.push({ sequence: token.sequence, text: token.text, urn: token.urn, type: token.type });
-                            includedSequences.add(token.sequence);
-                            ensureTokenRelationEntry(ann, token.sequence, token.text, token.urn, token.type);
+                        if (token) {
+                             if (!includedSequences.has(token.sequence)) {
+                                relevantTokensData.push({ sequence: token.sequence, text: token.text, urn: token.urn });
+                                includedSequences.add(token.sequence);
+                                ensureTokenRelationEntry(ann, token.sequence, token.text);
+                            }
                         }
                     });
                 });
             }
-            relevantTokensData.sort((a, b) => {
-                if (a.sequence === ASYNDETON_NODE_ID) return -1;
-                if (b.sequence === ASYNDETON_NODE_ID) return 1;
-                return a.sequence - b.sequence;
-            });
+            relevantTokensData.sort((a, b) => a.sequence - b.sequence);
             return relevantTokensData;
         }
 
         function checkAndEnableMode4() {
             const ann = getCurrentSentenceAnnotation();
             if (!ann) {
-                annotationMode4Div.classList.add('hidden'); 
-                downloadAreaDiv.classList.add('hidden'); 
-                return;
+                annotationMode4Div.classList.add('hidden'); return;
             }
 
             const relevantTokens = getMode4RelevantTokens(ann);
-            const mode4Threshold = (ann.asyndeton === true && relevantTokens.length >=1) || relevantTokens.length > 1;
 
-            let hasAnyRelations = false;
-            if (ann.tokenRelations) {
-                for (const seq in ann.tokenRelations) {
-                    const rel = ann.tokenRelations[seq];
-                    if (rel.node1Sequence !== null || rel.node2Sequence !== null) {
-                        hasAnyRelations = true;
-                        break;
-                    }
-                }
-            }
-
-            if (mode4Threshold) { 
+            if (relevantTokens.length > 1) {
                 annotationMode4Div.classList.remove('hidden');
                 mode4Header.textContent = `Annotation Mode 4: Token Relations (Sentence Global)`;
                 
                 populateTokenRelationsTable(relevantTokens, ann.tokenRelations);
                 renderMermaidGraph(relevantTokens, ann.tokenRelations);
                 mode4Status.textContent = "";
-                if (hasAnyRelations) { 
-                    downloadAreaDiv.classList.remove('hidden');
-                } else {
-                    downloadAreaDiv.classList.add('hidden');
-                }
             } else {
                 annotationMode4Div.classList.add('hidden');
-                downloadAreaDiv.classList.add('hidden');
-                mode4Status.textContent = "Mode 4 requires at least 2 tokens or an active asyndeton node.";
+                mode4Status.textContent = "Mode 4 requires at least 2 tokens (from any Verbal Unit or as Connecting Word).";
                 mermaidDiv.innerHTML = ""; 
             }
         }
@@ -910,7 +667,7 @@
             relevantTokens.forEach(token => {
                 const refSeq = token.sequence;
                 if (!globalRelations[refSeq]) {
-                     ensureTokenRelationEntry(getCurrentSentenceAnnotation(), refSeq, token.text, token.urn, token.type);
+                     ensureTokenRelationEntry(getCurrentSentenceAnnotation(), refSeq, token.text);
                 }
                 const relationData = globalRelations[refSeq];
 
@@ -918,53 +675,43 @@
                 row.insertCell().textContent = refSeq;
                 row.insertCell().textContent = token.text; 
 
-                const createNumberInput = (currentValue, key, relData) => {
+                const createInput = (type, value, onChangeCallback) => {
                     const input = document.createElement('input');
-                    input.type = 'number';
-                    input.value = currentValue !== null && currentValue !== undefined ? currentValue : '';
-                    input.onchange = (e) => {
-                        const val = e.target.value === '' ? null : parseInt(e.target.value, 10);
-                        if (val !== null && !validTokenSequencesInTable.has(val)) {
-                            alert(`Invalid Node ID: ${val}. Must be a reference of a token (or ${ASYNDETON_NODE_ID} for asyndeton) listed in this table.`);
-                            e.target.value = relData[key] !== null ? relData[key] : ''; 
-                            return;
-                        }
-                        relData[key] = val;
-                        renderMermaidGraph(getMode4RelevantTokens(getCurrentSentenceAnnotation()), globalRelations);
-                        checkAndEnableMode4(); 
-                        checkAndShowVerbalUnitTokenGrouping(); // Update grouping display as relations change
-                    };
+                    input.type = type;
+                    input.value = value !== null && value !== undefined ? value : '';
+                    input.onchange = onChangeCallback;
                     return input;
                 };
-
-                const createRelationSelect = (currentValue, key, relData) => {
-                    const select = document.createElement('select');
-                    const defaultOption = document.createElement('option');
-                    defaultOption.value = ""; 
-                    defaultOption.textContent = "-- Select Relation --";
-                    select.appendChild(defaultOption);
-
-                    TOKEN_RELATION_VALUES.forEach(val => {
-                        const option = document.createElement('option');
-                        option.value = val;
-                        option.textContent = val;
-                        select.appendChild(option);
-                    });
-
-                    select.value = currentValue || ""; 
-                    select.onchange = (e) => {
-                        relData[key] = e.target.value || null; 
+                
+                const createNumberInput = (currentValue, key, relationData) => {
+                    return createInput('number', currentValue, (e) => {
+                        const val = e.target.value === '' ? null : parseInt(e.target.value, 10);
+                        if (val !== null && !validTokenSequencesInTable.has(val)) {
+                            alert(`Invalid Node ID: ${val}. Must be a reference of a token listed in this table.`);
+                            e.target.value = relationData[key] !== null ? relationData[key] : ''; 
+                            return;
+                        }
+                        relationData[key] = val;
+                        if (val === null) { 
+                            if (key === 'node1Sequence') relationData.node1Rel = null;
+                            if (key === 'node2Sequence') relationData.node2Rel = null;
+                            populateTokenRelationsTable(getMode4RelevantTokens(getCurrentSentenceAnnotation()), globalRelations); 
+                        }
                         renderMermaidGraph(getMode4RelevantTokens(getCurrentSentenceAnnotation()), globalRelations);
-                        checkAndEnableMode4(); 
-                        checkAndShowVerbalUnitTokenGrouping(); // Update grouping display as relations change
-                    };
-                    return select;
+                    });
+                };
+
+                const createTextInput = (currentValue, key, relationData) => {
+                     return createInput('text', currentValue, (e) => {
+                        relationData[key] = e.target.value.trim() || null;
+                        renderMermaidGraph(getMode4RelevantTokens(getCurrentSentenceAnnotation()), globalRelations);
+                    });
                 };
 
                 row.insertCell().appendChild(createNumberInput(relationData.node1Sequence, 'node1Sequence', relationData));
-                row.insertCell().appendChild(createRelationSelect(relationData.node1Rel, 'node1Rel', relationData));
+                row.insertCell().appendChild(createTextInput(relationData.node1Rel, 'node1Rel', relationData));
                 row.insertCell().appendChild(createNumberInput(relationData.node2Sequence, 'node2Sequence', relationData));
-                row.insertCell().appendChild(createRelationSelect(relationData.node2Rel, 'node2Rel', relationData));
+                row.insertCell().appendChild(createTextInput(relationData.node2Rel, 'node2Rel', relationData));
             });
         }
         
@@ -1012,103 +759,6 @@
         function escapeMermaidLabel(text) {
             if (typeof text !== 'string') text = String(text);
             return text.replace(/"/g, '#quot;').replace(/;/g, '#59;'); 
-        }
-
-        function handleDownloadAnnotations() {
-            let output = "";
-
-            const sentencesHeader = "sentence|sequence|connector";
-            const sentencesData = [];
-            for (const sentenceUrn in annotations) {
-                if (annotations.hasOwnProperty(sentenceUrn)) {
-                    const ann = annotations[sentenceUrn];
-                    const sentenceMenuIndex = sentenceUrnMap[sentenceUrn] || ''; 
-                    const connectorUrn = ann.asyndeton ? '' : (ann.connectingWordURN || '');
-                    sentencesData.push(`${sentenceUrn}|${sentenceMenuIndex}|${connectorUrn}`);
-                }
-            }
-            if (sentencesData.length > 0) {
-                 output += "#!sentences\n";
-                 output += sentencesHeader + "\n";
-                 output += sentencesData.join("\n") + "\n\n";
-            }
-
-            const verbalUnitsHeader = "vuid|syntactic_type|semantic_type|depth|sentence";
-            const verbalUnitsData = [];
-            for (const sentenceUrn in annotations) {
-                if (annotations.hasOwnProperty(sentenceUrn)) {
-                    const ann = annotations[sentenceUrn];
-                    if (ann.verbalUnits) {
-                        ann.verbalUnits.forEach(vu => {
-                            verbalUnitsData.push(`${vu.id}|${vu.syntacticType}|${vu.semanticType}|${vu.depth}|${sentenceUrn}`);
-                        });
-                    }
-                }
-            }
-             if (verbalUnitsData.length > 0) {
-                output += "#!verbal_units\n";
-                output += verbalUnitsHeader + "\n";
-                output += verbalUnitsData.join("\n") + "\n\n";
-            }
-
-            const tokensHeader = "urn|reference|tokentype|text|verbalunit|node1|node1relation|node2|node2relation";
-            const tokensData = [];
-            for (const sentenceUrn in annotations) {
-                if (annotations.hasOwnProperty(sentenceUrn)) {
-                    const ann = annotations[sentenceUrn];
-                    if (ann.tokenRelations) {
-                        for (const refSeq in ann.tokenRelations) {
-                            if (ann.tokenRelations.hasOwnProperty(refSeq)) {
-                                const relData = ann.tokenRelations[refSeq];
-                                
-                                let assignedVuId = '';
-                                if (ann.verbalUnits && relData.originalUrn !== ASYNDETON_NODE_URN) {
-                                    for (const vu of ann.verbalUnits) {
-                                        if (vu.assignedTokenURNs.includes(relData.originalUrn)) {
-                                            assignedVuId = vu.id;
-                                            break;
-                                        }
-                                    }
-                                }
-
-                                tokensData.push([
-                                    relData.originalUrn || '',         
-                                    refSeq,                            
-                                    relData.originalType || '',        
-                                    relData.tokenText || '',           
-                                    assignedVuId,                      
-                                    relData.node1Sequence !== null ? relData.node1Sequence : '', 
-                                    relData.node1Rel || '',            
-                                    relData.node2Sequence !== null ? relData.node2Sequence : '', 
-                                    relData.node2Rel || ''             
-                                ].join("|"));
-                            }
-                        }
-                    }
-                }
-            }
-            if (tokensData.length > 0) {
-                output += "#!tokens\n";
-                output += tokensHeader + "\n";
-                output += tokensData.join("\n") + "\n";
-            }
-            
-
-            if (output.trim() === "") {
-                alert("No annotations to download.");
-                return;
-            }
-
-            const filename = downloadFilenameInput.value.trim() || "greek_annotations.cex";
-            const blob = new Blob([output], { type: 'text/plain;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
         }
 
     </script>

@@ -8,7 +8,7 @@
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
     <style>
         body {
-            font-family: sans-serif; 
+            font-family: sans-serif;
             line-height: 1.6;
             margin: 20px;
         }
@@ -99,38 +99,9 @@
             font-size: 0.9em;
             color: #666;
         }
-        
-        /* Verbal Unit Token Grouping Styles */
-        #verbalUnitTokenGroupingDisplay {
-            font-size: 1.2em; 
-            line-height: 1.8; /* Increased line-height for underlines */
+        #verbalUnitTokenGroupingDisplay div { 
+            margin-bottom: 2px; 
         }
-        .vu-line { 
-            margin-bottom: 3px; 
-        }
-        .indent-depth-0 { margin-left: 0em; }
-        .indent-depth-1 { margin-left: 1.5em; } 
-        .indent-depth-2 { margin-left: 3.0em; }
-        .indent-depth-3 { margin-left: 4.5em; }
-        .indent-depth-4 { margin-left: 6.0em; }
-        .indent-depth-5 { margin-left: 7.5em; }
-
-        /* Styles for Node 1 Relation based formatting */
-        .unit-verb-box {
-            border: 1px solid black;
-            padding: 0 2px; /* Small padding inside the box */
-            border-radius: 2px;
-            display: inline-block; /* To make border wrap content */
-        }
-        .subject-underline {
-            text-decoration: underline;
-        }
-        .direct-object-wavy-underline {
-            text-decoration: underline wavy; /* Standard wavy underline */
-            /* For browsers not supporting 'wavy', this might fallback or need a more complex SVG/border-image solution */
-        }
-
-
         #downloadFilenameInput { 
             width: 250px;
         }
@@ -185,7 +156,7 @@
 
     <div id="verbalUnitTokenGroupingArea" class="hidden"> 
         <h2>Verbal Unit Token Grouping</h2>
-        <div id="verbalUnitTokenGroupingDisplay"></div> 
+        <div id="verbalUnitTokenGroupingDisplay" style="font-family: monospace; font-size: 1.2em;"></div> {/* FONT SIZE ADJUSTED HERE */}
     </div>
 
     <div id="annotationMode3" class="hidden">
@@ -286,6 +257,7 @@
         const ASYNDETON_NODE_ID = 0;
         const ASYNDETON_NODE_TEXT = "asyndeton";
         const ASYNDETON_NODE_URN = "internal:asyndeton_node";
+        const INDENTATION_UNIT_EM = 1.5;
 
 
         SYNTACTIC_TYPES.forEach(type => newVuSyntacticTypeSelect.appendChild(new Option(type, type)));
@@ -765,29 +737,12 @@
                 if (currentTokenVU) {
                     if (!currentLineDiv || previousTokenVU_forGrouping !== currentTokenVU) {
                         currentLineDiv = document.createElement('div');
-                        currentLineDiv.classList.add('vu-line'); 
-                        currentLineDiv.classList.add(`indent-depth-${currentTokenVU.depth}`); 
+                        currentLineDiv.style.paddingLeft = (currentTokenVU.depth * INDENTATION_UNIT_EM) + 'em';
                         verbalUnitTokenGroupingDisplay.appendChild(currentLineDiv);
                     } else {
                         currentLineDiv.appendChild(document.createTextNode(' '));
                     }
-                    
-                    // Create a span for the token text to apply specific styles
-                    const tokenTextSpan = document.createElement('span');
-                    tokenTextSpan.textContent = token.text;
-
-                    // Apply styles based on node1Rel of this token
-                    if (ann.tokenRelations && ann.tokenRelations[token.sequence]) {
-                        const relData = ann.tokenRelations[token.sequence];
-                        if (relData.node1Rel === 'unit verb') {
-                            tokenTextSpan.classList.add('unit-verb-box');
-                        } else if (relData.node1Rel === 'subject') {
-                            tokenTextSpan.classList.add('subject-underline');
-                        } else if (relData.node1Rel === 'direct object') {
-                            tokenTextSpan.classList.add('direct-object-wavy-underline');
-                        }
-                    }
-                    currentLineDiv.appendChild(tokenTextSpan);
+                    currentLineDiv.appendChild(document.createTextNode(token.text));
                     previousTokenVU_forGrouping = currentTokenVU;
                 } else {
                     previousTokenVU_forGrouping = null; 
@@ -890,7 +845,7 @@
                 populateTokenRelationsTable(relevantTokens, ann.tokenRelations);
                 renderMermaidGraph(relevantTokens, ann.tokenRelations);
                 mode4Status.textContent = "";
-                if (hasAnyRelations) { 
+                if (hasAnyRelations) { // Show download only if mode 4 is active AND there are relations
                     downloadAreaDiv.classList.remove('hidden');
                 } else {
                     downloadAreaDiv.classList.add('hidden');
@@ -931,8 +886,7 @@
                         }
                         relData[key] = val;
                         renderMermaidGraph(getMode4RelevantTokens(getCurrentSentenceAnnotation()), globalRelations);
-                        checkAndEnableMode4(); 
-                        checkAndShowVerbalUnitTokenGrouping(); // Update grouping display as relations change
+                        checkAndEnableMode4(); // Re-check conditions for Mode 4 and download
                     };
                     return input;
                 };
@@ -955,8 +909,7 @@
                     select.onchange = (e) => {
                         relData[key] = e.target.value || null; 
                         renderMermaidGraph(getMode4RelevantTokens(getCurrentSentenceAnnotation()), globalRelations);
-                        checkAndEnableMode4(); 
-                        checkAndShowVerbalUnitTokenGrouping(); // Update grouping display as relations change
+                        checkAndEnableMode4(); // Re-check conditions for Mode 4 and download
                     };
                     return select;
                 };
