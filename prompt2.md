@@ -88,3 +88,37 @@ Excellent: highlighting is persisting on tokens assigned to verbal units! We're 
 ---
 
 Still no yellow highlighting appearing on the identified connecting word. Please review and fix.
+
+---
+
+Great! Now a new tweak. In editing the table of token relations, let's allow the user to choose from a popup list of values for each of the two relation columns "Node 1 Relation" and "Node 2 Relation".  The values for the relations should be the following:
+
+```
+conjunction
+subordinate conjunction
+relative pronoun
+unit verb
+predicate
+subject
+direct object
+object of preposition
+direct address
+complementary infinitive
+supplementary participle
+modal particle
+adverbial
+attributive
+article
+pronoun
+dative
+genitive
+```
+
+Could you add this?
+
+--
+
+Lovely! One further tweak. If the sentence illustrates *asyndeton* (no connecting word), could you add to the table of token relations in Mode 4 a row to represent that? It should have reference number `0`, and token value `asyndeton`.
+
+---
+This works well. A minor fix: could you ensure that in highlighting what verbal unit a token is assigned to, each verbal unit is represented by a different randomly chosen color?

@@ -27,7 +27,7 @@
         input[type="text"], input[type="number"], select {
             padding: 5px;
             margin-right: 10px;
-            min-width: 100px; 
+            min-width: 100px; /* Give selects some base width */
         }
         button {
             padding: 5px 10px;
@@ -89,7 +89,7 @@
         #tokenRelationsTable input[type="number"] {
             width: 60px;
         }
-        #tokenRelationsTable select { 
+        #tokenRelationsTable select { /* Style for the new relation selects */
             width: 150px;
         }
     </style>
@@ -220,9 +220,6 @@
             "modal particle", "adverbial", "attributive", "article", "pronoun", 
             "dative", "genitive"
         ];
-        const ASYNDETON_NODE_ID = 0;
-        const ASYNDETON_NODE_TEXT = "asyndeton";
-        const ASYNDETON_NODE_URN = "internal:asyndeton_node";
 
 
         SYNTACTIC_TYPES.forEach(type => newVuSyntacticTypeSelect.appendChild(new Option(type, type)));
@@ -396,33 +393,12 @@
         function handleAsyndetonChange() {
             const ann = getCurrentSentenceAnnotation();
             if (!ann) return;
-            
-            const wasAsyndeton = ann.asyndeton;
             ann.asyndeton = asyndetonCheckbox.checked;
-
             if (ann.asyndeton) {
                 ann.connectingWordURN = null; 
-                ensureTokenRelationEntry(ann, ASYNDETON_NODE_ID, ASYNDETON_NODE_TEXT);
-            } else { 
-                if (wasAsyndeton) { 
-                    if (ann.tokenRelations && ann.tokenRelations[ASYNDETON_NODE_ID]) {
-                        delete ann.tokenRelations[ASYNDETON_NODE_ID];
-                    }
-                    for (const seq in ann.tokenRelations) {
-                        const rel = ann.tokenRelations[seq];
-                        if (rel.node1Sequence === ASYNDETON_NODE_ID) {
-                            rel.node1Sequence = null;
-                            rel.node1Rel = null;
-                        }
-                        if (rel.node2Sequence === ASYNDETON_NODE_ID) {
-                            rel.node2Sequence = null;
-                            rel.node2Rel = null;
-                        }
-                    }
-                }
             }
             displaySentenceTokens(); 
-            updateMode1StateAndProceed(); 
+            updateMode1StateAndProceed();
         }
 
         function ensureTokenRelationEntry(ann, tokenSequence, tokenText) {
@@ -454,15 +430,7 @@
             if (mode1Pending && !asyndetonCheckbox.checked) {
                 ann.connectingWordURN = urn;
                 ann.asyndeton = false; 
-                asyndetonCheckbox.checked = false; 
-                if (ann.tokenRelations && ann.tokenRelations[ASYNDETON_NODE_ID]) {
-                    delete ann.tokenRelations[ASYNDETON_NODE_ID];
-                     for (const seq in ann.tokenRelations) {
-                        const rel = ann.tokenRelations[seq];
-                        if (rel.node1Sequence === ASYNDETON_NODE_ID) { rel.node1Sequence = null; rel.node1Rel = null;}
-                        if (rel.node2Sequence === ASYNDETON_NODE_ID) { rel.node2Sequence = null; rel.node2Rel = null;}
-                    }
-                }
+                asyndetonCheckbox.checked = false;
                 ensureTokenRelationEntry(ann, sequence, clickedTokenObject.text);
                 displaySentenceTokens();
                 updateMode1StateAndProceed();
@@ -499,7 +467,6 @@
             if (ann.asyndeton === true) {
                 mode1Instruction.classList.add('hidden');
                 mode1CompletionStatus.textContent = "Mode 1 (Asyndeton) complete.";
-                ensureTokenRelationEntry(ann, ASYNDETON_NODE_ID, ASYNDETON_NODE_TEXT); 
             } else if (ann.asyndeton === false && ann.connectingWordURN) {
                 mode1Instruction.classList.add('hidden');
                 mode1CompletionStatus.textContent = "Mode 1 (Connecting Word) complete.";
@@ -644,18 +611,14 @@
 
             if (!ann) return relevantTokensData;
 
-            if (ann.asyndeton === true) {
-                relevantTokensData.push({ sequence: ASYNDETON_NODE_ID, text: ASYNDETON_NODE_TEXT, urn: ASYNDETON_NODE_URN });
-                includedSequences.add(ASYNDETON_NODE_ID);
-                ensureTokenRelationEntry(ann, ASYNDETON_NODE_ID, ASYNDETON_NODE_TEXT);
-            }
-
             if (ann.connectingWordURN) {
                 const cwToken = currentSentenceTokens.find(t => t.urn === ann.connectingWordURN && t.type === 'lexical');
-                if (cwToken && !includedSequences.has(cwToken.sequence)) {
-                    relevantTokensData.push({ sequence: cwToken.sequence, text: cwToken.text, urn: cwToken.urn });
-                    includedSequences.add(cwToken.sequence);
-                    ensureTokenRelationEntry(ann, cwToken.sequence, cwToken.text);
+                if (cwToken) {
+                    if (!includedSequences.has(cwToken.sequence)) {
+                        relevantTokensData.push({ sequence: cwToken.sequence, text: cwToken.text, urn: cwToken.urn });
+                        includedSequences.add(cwToken.sequence);
+                        ensureTokenRelationEntry(ann, cwToken.sequence, cwToken.text);
+                    }
                 }
             }
 
@@ -663,19 +626,17 @@
                 ann.verbalUnits.forEach(vu => {
                     vu.assignedTokenURNs.forEach(urn => {
                         const token = currentSentenceTokens.find(t => t.urn === urn && t.type === 'lexical');
-                        if (token && !includedSequences.has(token.sequence)) {
-                            relevantTokensData.push({ sequence: token.sequence, text: token.text, urn: token.urn });
-                            includedSequences.add(token.sequence);
-                            ensureTokenRelationEntry(ann, token.sequence, token.text);
+                        if (token) {
+                             if (!includedSequences.has(token.sequence)) {
+                                relevantTokensData.push({ sequence: token.sequence, text: token.text, urn: token.urn });
+                                includedSequences.add(token.sequence);
+                                ensureTokenRelationEntry(ann, token.sequence, token.text);
+                            }
                         }
                     });
                 });
             }
-            relevantTokensData.sort((a, b) => {
-                if (a.sequence === ASYNDETON_NODE_ID) return -1;
-                if (b.sequence === ASYNDETON_NODE_ID) return 1;
-                return a.sequence - b.sequence;
-            });
+            relevantTokensData.sort((a, b) => a.sequence - b.sequence);
             return relevantTokensData;
         }
 
@@ -686,10 +647,8 @@
             }
 
             const relevantTokens = getMode4RelevantTokens(ann);
-            const mode4Threshold = (ann.asyndeton === true && relevantTokens.length >=1) || relevantTokens.length > 1;
 
-
-            if (mode4Threshold) { 
+            if (relevantTokens.length > 1) {
                 annotationMode4Div.classList.remove('hidden');
                 mode4Header.textContent = `Annotation Mode 4: Token Relations (Sentence Global)`;
                 
@@ -698,7 +657,7 @@
                 mode4Status.textContent = "";
             } else {
                 annotationMode4Div.classList.add('hidden');
-                mode4Status.textContent = "Mode 4 requires at least 2 tokens or an active asyndeton node.";
+                mode4Status.textContent = "Mode 4 requires at least 2 tokens (from any Verbal Unit or as Connecting Word).";
                 mermaidDiv.innerHTML = ""; 
             }
         }
@@ -718,6 +677,7 @@
                 row.insertCell().textContent = refSeq;
                 row.insertCell().textContent = token.text; 
 
+                // Helper for number input
                 const createNumberInput = (currentValue, key, relData) => {
                     const input = document.createElement('input');
                     input.type = 'number';
@@ -725,7 +685,7 @@
                     input.onchange = (e) => {
                         const val = e.target.value === '' ? null : parseInt(e.target.value, 10);
                         if (val !== null && !validTokenSequencesInTable.has(val)) {
-                            alert(`Invalid Node ID: ${val}. Must be a reference of a token (or ${ASYNDETON_NODE_ID} for asyndeton) listed in this table.`);
+                            alert(`Invalid Node ID: ${val}. Must be a reference of a token listed in this table.`);
                             e.target.value = relData[key] !== null ? relData[key] : ''; 
                             return;
                         }
@@ -740,10 +700,11 @@
                     return input;
                 };
 
+                // Helper for relation select dropdown
                 const createRelationSelect = (currentValue, key, relData) => {
                     const select = document.createElement('select');
                     const defaultOption = document.createElement('option');
-                    defaultOption.value = ""; 
+                    defaultOption.value = ""; // Represents null
                     defaultOption.textContent = "-- Select Relation --";
                     select.appendChild(defaultOption);
 
@@ -754,9 +715,9 @@
                         select.appendChild(option);
                     });
 
-                    select.value = currentValue || ""; 
+                    select.value = currentValue || ""; // Set current value, default to "" if null/undefined
                     select.onchange = (e) => {
-                        relData[key] = e.target.value || null; 
+                        relData[key] = e.target.value || null; // Store "" as null
                         renderMermaidGraph(getMode4RelevantTokens(getCurrentSentenceAnnotation()), globalRelations);
                     };
                     return select;
