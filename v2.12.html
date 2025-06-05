@@ -153,7 +153,7 @@
 
     <div id="verbalUnitTokenGroupingArea" class="hidden"> 
         <h2>Verbal Unit Token Grouping</h2>
-        <div id="verbalUnitTokenGroupingDisplay" style="font-family: monospace; font-size: 1.1em;"></div> 
+        <div id="verbalUnitTokenGroupingDisplay" style="font-family: monospace; font-size: 1.4em;"></div> 
     </div>
 
     <div id="annotationMode3" class="hidden">
@@ -498,32 +498,15 @@
             }
 
             if (!annotationMode3Div.classList.contains('hidden') && currentSelectedVerbalUnitIndex !== -1) {
-                const currentVU = ann.verbalUnits[currentSelectedVerbalUnitIndex];
-                let wasInAnotherVU = false;
+                const selectedVU = ann.verbalUnits[currentSelectedVerbalUnitIndex];
+                const tokenIndexInVU = selectedVU.assignedTokenURNs.indexOf(urn);
 
-                // Check if token is in any *other* VU and remove it
-                for (let i = 0; i < ann.verbalUnits.length; i++) {
-                    if (i === currentSelectedVerbalUnitIndex) continue; // Skip the currently selected VU for now
-                    const otherVU = ann.verbalUnits[i];
-                    const tokenIndexInOtherVU = otherVU.assignedTokenURNs.indexOf(urn);
-                    if (tokenIndexInOtherVU > -1) {
-                        otherVU.assignedTokenURNs.splice(tokenIndexInOtherVU, 1);
-                        wasInAnotherVU = true;
-                    }
-                }
-
-                // Now handle assignment to the *current* VU
-                const tokenIndexInCurrentVU = currentVU.assignedTokenURNs.indexOf(urn);
-
-                if (tokenIndexInCurrentVU > -1) {
-                    // Token is in the current VU, so clicking means unassign (toggle off)
-                    currentVU.assignedTokenURNs.splice(tokenIndexInCurrentVU, 1);
-                } else {
-                    // Token is not in the current VU (or was just removed from another), so assign it
-                    currentVU.assignedTokenURNs.push(urn);
+                if (tokenIndexInVU > -1) { 
+                    selectedVU.assignedTokenURNs.splice(tokenIndexInVU, 1);
+                } else { 
+                    selectedVU.assignedTokenURNs.push(urn);
                     ensureTokenRelationEntry(ann, sequence, clickedTokenObject.text);
                 }
-                
                 renderVerbalUnitsTable(); 
                 displaySentenceTokens(); 
                 checkAndEnableMode4(); 
@@ -708,6 +691,7 @@
             let currentLineDiv = null;
             let previousTokenVU = null;
 
+            // Sort tokens by sequence for consistent display order
             const sortedTokens = [...currentSentenceTokens].sort((a, b) => a.sequence - b.sequence);
 
             for (const token of sortedTokens) {
@@ -718,6 +702,13 @@
                 if (currentTokenVU) {
                     if (!currentLineDiv || previousTokenVU !== currentTokenVU) {
                         currentLineDiv = document.createElement('div');
+                        // Depth 0 means level 1, flush left. Depth 1 means level 2, indent 1 unit.
+                        // Padding should be (depth - 1) * indent_unit if depth is 1-based for levels.
+                        // Or if depth is 0-based: depth 0 = no indent, depth 1 = 1 unit indent.
+                        // The prompt says "Level 1 ... flush left; level 2 ... indented one level further"
+                        // Assuming VU depth is 1-based for these levels for indentation.
+                        // If VU.depth is 0, it means level 1, so (vu.depth) * indent is 0.
+                        // If VU.depth is 1, it means level 2, so (vu.depth) * indent is 1 * indent. This works.
                         currentLineDiv.style.paddingLeft = (currentTokenVU.depth * INDENTATION_UNIT_EM) + 'em';
                         verbalUnitTokenGroupingDisplay.appendChild(currentLineDiv);
                     } else {
@@ -726,8 +717,9 @@
                     currentLineDiv.appendChild(document.createTextNode(token.text));
                     previousTokenVU = currentTokenVU;
                 } else {
+                    // If a token is not in any VU, it breaks the sequence for the next VU token
                     previousTokenVU = null; 
-                    currentLineDiv = null; 
+                    currentLineDiv = null; // Ensure next VU token starts a new line
                 }
             }
         }

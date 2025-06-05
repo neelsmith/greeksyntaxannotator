@@ -125,3 +125,14 @@ This works well. A minor fix: could you ensure that in highlighting what verbal 
 
 ---
 Great! I'd like to make two minor adjustments to the display without in any way changing the functionality. 1) Could you position the block labelled "Sentence Text" below the block labelled "Annotation Mode 1: Asyndeton / Connecting Word" and above the block labelled "Annotation Mode 2: Verbal Units"? 2) When the user chooses a sentence from the menu, could you display right below the menu the integer index of the user's choice? This value should be 1-based, disregarding the labelling instruction "-- Select a sentence --". **Example**: if the user chose the first item after "-- Select a sentence --", the index value would be `1`.
+
+---
+
+Great! Let's alter the page layout by moving the section "Sentence Text" *after* (below) section "Annotation Mode 2: Verbal Units". Then immediately after that, let's add a further display of the `text` property of all tokens assigned to a verbal unit, as follows: if a token belongs to the same verbal unit as the preceding token, it continues on the same line. If it belongs to a different verbal unit, it begins a new line. Line beginnings should be indented according to the depth value of the verbal unit. Level 1 verbal units should be flush left; level 2 units should be indented one level further; etc. Tokens on the same line should be separated by a single white space.
+
+---
+
+Beautiful! Could you make the text size in the new "Verbal Unit Token Grouping" display a little larger?
+---
+
+Excellent! Let's modify the clicking behavior when assigning tokens to a verbal unit so that the user can change the assignment of a token: that is, so the user can assign a token to the current verbal unit, even if it's already been assigned to a different one. User click should override any previous assignment.

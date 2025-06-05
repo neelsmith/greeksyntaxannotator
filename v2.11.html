@@ -99,8 +99,8 @@
             font-size: 0.9em;
             color: #666;
         }
-        #verbalUnitTokenGroupingDisplay div { 
-            margin-bottom: 2px; 
+        #verbalUnitTokenGroupingDisplay div { /* For lines in the new display */
+            margin-bottom: 2px; /* Small gap between lines */
         }
     </style>
 </head>
@@ -146,14 +146,14 @@
         </table>
     </div>
 
-    <div id="sentenceDisplayArea" class="hidden"> 
+    <div id="sentenceDisplayArea" class="hidden"> <!-- MOVED HERE -->
         <h2>Sentence Text</h2>
         <div id="sentenceDisplay" style="font-size: 1.2em; line-height: 2;"></div>
     </div>
 
-    <div id="verbalUnitTokenGroupingArea" class="hidden"> 
+    <div id="verbalUnitTokenGroupingArea" class="hidden"> <!-- NEW DISPLAY BLOCK -->
         <h2>Verbal Unit Token Grouping</h2>
-        <div id="verbalUnitTokenGroupingDisplay" style="font-family: monospace; font-size: 1.1em;"></div> 
+        <div id="verbalUnitTokenGroupingDisplay" style="font-family: monospace;"></div>
     </div>
 
     <div id="annotationMode3" class="hidden">
@@ -219,8 +219,8 @@
         const confirmNewVuBtn = document.getElementById('confirmNewVuBtn');
         const cancelNewVuBtn = document.getElementById('cancelNewVuBtn');
         const verbalUnitsTableBody = document.getElementById('verbalUnitsTableBody');
-        const verbalUnitTokenGroupingArea = document.getElementById('verbalUnitTokenGroupingArea'); 
-        const verbalUnitTokenGroupingDisplay = document.getElementById('verbalUnitTokenGroupingDisplay'); 
+        const verbalUnitTokenGroupingArea = document.getElementById('verbalUnitTokenGroupingArea'); // New
+        const verbalUnitTokenGroupingDisplay = document.getElementById('verbalUnitTokenGroupingDisplay'); // New
         const annotationMode3Div = document.getElementById('annotationMode3');
         const verbalUnitSelectForAssignment = document.getElementById('verbalUnitSelectForAssignment');
         const mode3Status = document.getElementById('mode3Status');
@@ -362,7 +362,7 @@
             }
             
             updateMode1StateAndProceed();
-            checkAndShowVerbalUnitTokenGrouping(); 
+            checkAndShowVerbalUnitTokenGrouping(); // Initial call after sentence change
         }
         
         function displaySentenceTokens() {
@@ -498,32 +498,15 @@
             }
 
             if (!annotationMode3Div.classList.contains('hidden') && currentSelectedVerbalUnitIndex !== -1) {
-                const currentVU = ann.verbalUnits[currentSelectedVerbalUnitIndex];
-                let wasInAnotherVU = false;
+                const selectedVU = ann.verbalUnits[currentSelectedVerbalUnitIndex];
+                const tokenIndexInVU = selectedVU.assignedTokenURNs.indexOf(urn);
 
-                // Check if token is in any *other* VU and remove it
-                for (let i = 0; i < ann.verbalUnits.length; i++) {
-                    if (i === currentSelectedVerbalUnitIndex) continue; // Skip the currently selected VU for now
-                    const otherVU = ann.verbalUnits[i];
-                    const tokenIndexInOtherVU = otherVU.assignedTokenURNs.indexOf(urn);
-                    if (tokenIndexInOtherVU > -1) {
-                        otherVU.assignedTokenURNs.splice(tokenIndexInOtherVU, 1);
-                        wasInAnotherVU = true;
-                    }
-                }
-
-                // Now handle assignment to the *current* VU
-                const tokenIndexInCurrentVU = currentVU.assignedTokenURNs.indexOf(urn);
-
-                if (tokenIndexInCurrentVU > -1) {
-                    // Token is in the current VU, so clicking means unassign (toggle off)
-                    currentVU.assignedTokenURNs.splice(tokenIndexInCurrentVU, 1);
-                } else {
-                    // Token is not in the current VU (or was just removed from another), so assign it
-                    currentVU.assignedTokenURNs.push(urn);
+                if (tokenIndexInVU > -1) { 
+                    selectedVU.assignedTokenURNs.splice(tokenIndexInVU, 1);
+                } else { 
+                    selectedVU.assignedTokenURNs.push(urn);
                     ensureTokenRelationEntry(ann, sequence, clickedTokenObject.text);
                 }
-                
                 renderVerbalUnitsTable(); 
                 displaySentenceTokens(); 
                 checkAndEnableMode4(); 
@@ -565,7 +548,7 @@
             } else {
                 [annotationMode2Div, verbalUnitTokenGroupingArea, 
                  annotationMode3Div, annotationMode4Div].forEach(el => el.classList.add('hidden'));
-                 verbalUnitTokenGroupingDisplay.innerHTML = ''; 
+                 verbalUnitTokenGroupingDisplay.innerHTML = ''; // Clear this display if Mode 2 not active
             }
             checkAndEnableMode4(); 
             checkAndShowVerbalUnitTokenGrouping();
@@ -708,9 +691,7 @@
             let currentLineDiv = null;
             let previousTokenVU = null;
 
-            const sortedTokens = [...currentSentenceTokens].sort((a, b) => a.sequence - b.sequence);
-
-            for (const token of sortedTokens) {
+            for (const token of currentSentenceTokens) {
                 if (token.type !== 'lexical') continue;
 
                 const currentTokenVU = findVerbalUnitForToken(token.urn, ann.verbalUnits);
@@ -718,6 +699,7 @@
                 if (currentTokenVU) {
                     if (!currentLineDiv || previousTokenVU !== currentTokenVU) {
                         currentLineDiv = document.createElement('div');
+                        // Depth 0 = level 1, flush left. Depth 1 = level 2, indent 1 unit.
                         currentLineDiv.style.paddingLeft = (currentTokenVU.depth * INDENTATION_UNIT_EM) + 'em';
                         verbalUnitTokenGroupingDisplay.appendChild(currentLineDiv);
                     } else {
@@ -727,7 +709,6 @@
                     previousTokenVU = currentTokenVU;
                 } else {
                     previousTokenVU = null; 
-                    currentLineDiv = null; 
                 }
             }
         }

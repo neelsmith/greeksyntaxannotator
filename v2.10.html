@@ -12,9 +12,7 @@
             line-height: 1.6;
             margin: 20px;
         }
-        #dataLoader, #sentenceSelector, #sentenceDisplayArea, 
-        #annotationMode1, #annotationMode2, #verbalUnitTokenGroupingArea, 
-        #annotationMode3, #annotationMode4 {
+        #dataLoader, #sentenceSelector, #sentenceDisplayArea, #annotationMode1, #annotationMode2, #annotationMode3, #annotationMode4 {
             margin-bottom: 20px;
             padding: 10px;
             border: 1px solid #eee;
@@ -99,9 +97,6 @@
             font-size: 0.9em;
             color: #666;
         }
-        #verbalUnitTokenGroupingDisplay div { 
-            margin-bottom: 2px; 
-        }
     </style>
 </head>
 <body>
@@ -126,7 +121,12 @@
         <p id="mode1Instruction">If not <em>asyndeton</em>, please click the <em>connecting word</em> in the sentence above.</p>
         <p id="mode1CompletionStatus" style="font-weight: bold;"></p>
     </div>
-    
+
+    <div id="sentenceDisplayArea" class="hidden"> <!-- MOVED HERE -->
+        <h2>Sentence Text</h2>
+        <div id="sentenceDisplay" style="font-size: 1.2em; line-height: 2;"></div>
+    </div>
+
     <div id="annotationMode2" class="hidden">
         <h2>Annotation Mode 2: Verbal Units</h2>
         <button id="addVerbalUnitBtn">Add New Verbal Unit</button>
@@ -144,16 +144,6 @@
             <thead><tr><th>Syntactic type</th><th>Semantic type</th><th>Depth</th><th>Tokens Assigned</th><th>Actions</th></tr></thead>
             <tbody id="verbalUnitsTableBody"></tbody>
         </table>
-    </div>
-
-    <div id="sentenceDisplayArea" class="hidden"> 
-        <h2>Sentence Text</h2>
-        <div id="sentenceDisplay" style="font-size: 1.2em; line-height: 2;"></div>
-    </div>
-
-    <div id="verbalUnitTokenGroupingArea" class="hidden"> 
-        <h2>Verbal Unit Token Grouping</h2>
-        <div id="verbalUnitTokenGroupingDisplay" style="font-family: monospace; font-size: 1.1em;"></div> 
     </div>
 
     <div id="annotationMode3" class="hidden">
@@ -197,13 +187,13 @@
         let annotations = {}; 
         let currentSelectedVerbalUnitIndex = -1; 
 
-        // UI Elements 
+        // UI Elements (IDs are fetched here)
         const cexUrlInput = document.getElementById('cexUrl');
         const loadButton = document.getElementById('loadButton');
         const statusMessage = document.getElementById('statusMessage');
         const sentenceSelectorDiv = document.getElementById('sentenceSelector');
         const sentenceDropdown = document.getElementById('sentenceDropdown');
-        const selectedSentenceIndexDisplay = document.getElementById('selectedSentenceIndexDisplay'); 
+        const selectedSentenceIndexDisplay = document.getElementById('selectedSentenceIndexDisplay'); // New element
         const sentenceDisplayAreaDiv = document.getElementById('sentenceDisplayArea');
         const sentenceDisplay = document.getElementById('sentenceDisplay');
         const annotationMode1Div = document.getElementById('annotationMode1');
@@ -219,8 +209,6 @@
         const confirmNewVuBtn = document.getElementById('confirmNewVuBtn');
         const cancelNewVuBtn = document.getElementById('cancelNewVuBtn');
         const verbalUnitsTableBody = document.getElementById('verbalUnitsTableBody');
-        const verbalUnitTokenGroupingArea = document.getElementById('verbalUnitTokenGroupingArea'); 
-        const verbalUnitTokenGroupingDisplay = document.getElementById('verbalUnitTokenGroupingDisplay'); 
         const annotationMode3Div = document.getElementById('annotationMode3');
         const verbalUnitSelectForAssignment = document.getElementById('verbalUnitSelectForAssignment');
         const mode3Status = document.getElementById('mode3Status');
@@ -242,7 +230,6 @@
         const ASYNDETON_NODE_ID = 0;
         const ASYNDETON_NODE_TEXT = "asyndeton";
         const ASYNDETON_NODE_URN = "internal:asyndeton_node";
-        const INDENTATION_UNIT_EM = 1.5;
 
 
         SYNTACTIC_TYPES.forEach(type => newVuSyntacticTypeSelect.appendChild(new Option(type, type)));
@@ -321,9 +308,8 @@
                 sentenceURNs.forEach(urn => sentenceDropdown.appendChild(new Option(urn, urn)));
 
                 sentenceSelectorDiv.classList.remove('hidden');
-                selectedSentenceIndexDisplay.textContent = ''; 
-                [sentenceDisplayAreaDiv, annotationMode1Div, annotationMode2Div, verbalUnitTokenGroupingArea, 
-                 annotationMode3Div, annotationMode4Div].forEach(el => el.classList.add('hidden'));
+                selectedSentenceIndexDisplay.textContent = ''; // Clear index on new data load
+                [sentenceDisplayAreaDiv, annotationMode1Div, annotationMode2Div, annotationMode3Div, annotationMode4Div].forEach(el => el.classList.add('hidden'));
                 updateStatus(`Found ${allTokens.length} tokens and ${sentenceURNs.length} sentences. Please select a sentence.`);
             } catch (error) {
                 console.error('Error processing CTS data:', error);
@@ -335,16 +321,17 @@
             currentSentenceURN = sentenceDropdown.value;
             currentSelectedVerbalUnitIndex = -1; 
 
-            if (!currentSentenceURN) { 
-                [sentenceDisplayAreaDiv, annotationMode1Div, annotationMode2Div, verbalUnitTokenGroupingArea, 
-                 annotationMode3Div, annotationMode4Div].forEach(el => el.classList.add('hidden'));
+            if (!currentSentenceURN) { // Placeholder selected
+                [sentenceDisplayAreaDiv, annotationMode1Div, annotationMode2Div, annotationMode3Div, annotationMode4Div].forEach(el => el.classList.add('hidden'));
                 sentenceDisplay.innerHTML = '';
                 currentSentenceTokens = [];
-                selectedSentenceIndexDisplay.textContent = ''; 
+                selectedSentenceIndexDisplay.textContent = ''; // Clear index display
                 return;
             }
-            
-            selectedSentenceIndexDisplay.textContent = `Selected sentence index: ${sentenceDropdown.selectedIndex}`;
+
+            // Display 1-based index of the selected sentence
+            selectedSentenceIndexDisplay.textContent = `Sentence index: ${sentenceDropdown.selectedIndex}`;
+
 
             const currentAnn = getCurrentSentenceAnnotation(); 
             currentSentenceTokens = greeklib.tokens(currentSentenceURN, allTokens);
@@ -362,7 +349,6 @@
             }
             
             updateMode1StateAndProceed();
-            checkAndShowVerbalUnitTokenGrouping(); 
         }
         
         function displaySentenceTokens() {
@@ -450,7 +436,6 @@
             }
             displaySentenceTokens(); 
             updateMode1StateAndProceed(); 
-            checkAndShowVerbalUnitTokenGrouping();
         }
 
         function ensureTokenRelationEntry(ann, tokenSequence, tokenText) {
@@ -498,44 +483,25 @@
             }
 
             if (!annotationMode3Div.classList.contains('hidden') && currentSelectedVerbalUnitIndex !== -1) {
-                const currentVU = ann.verbalUnits[currentSelectedVerbalUnitIndex];
-                let wasInAnotherVU = false;
+                const selectedVU = ann.verbalUnits[currentSelectedVerbalUnitIndex];
+                const tokenIndexInVU = selectedVU.assignedTokenURNs.indexOf(urn);
 
-                // Check if token is in any *other* VU and remove it
-                for (let i = 0; i < ann.verbalUnits.length; i++) {
-                    if (i === currentSelectedVerbalUnitIndex) continue; // Skip the currently selected VU for now
-                    const otherVU = ann.verbalUnits[i];
-                    const tokenIndexInOtherVU = otherVU.assignedTokenURNs.indexOf(urn);
-                    if (tokenIndexInOtherVU > -1) {
-                        otherVU.assignedTokenURNs.splice(tokenIndexInOtherVU, 1);
-                        wasInAnotherVU = true;
-                    }
-                }
-
-                // Now handle assignment to the *current* VU
-                const tokenIndexInCurrentVU = currentVU.assignedTokenURNs.indexOf(urn);
-
-                if (tokenIndexInCurrentVU > -1) {
-                    // Token is in the current VU, so clicking means unassign (toggle off)
-                    currentVU.assignedTokenURNs.splice(tokenIndexInCurrentVU, 1);
-                } else {
-                    // Token is not in the current VU (or was just removed from another), so assign it
-                    currentVU.assignedTokenURNs.push(urn);
+                if (tokenIndexInVU > -1) { 
+                    selectedVU.assignedTokenURNs.splice(tokenIndexInVU, 1);
+                } else { 
+                    selectedVU.assignedTokenURNs.push(urn);
                     ensureTokenRelationEntry(ann, sequence, clickedTokenObject.text);
                 }
-                
                 renderVerbalUnitsTable(); 
                 displaySentenceTokens(); 
                 checkAndEnableMode4(); 
-                checkAndShowVerbalUnitTokenGrouping();
             }
         }
         
         function updateMode1StateAndProceed() {
             const ann = getCurrentSentenceAnnotation();
             if (!ann) {
-                [annotationMode1Div, annotationMode2Div, verbalUnitTokenGroupingArea, 
-                 annotationMode3Div, annotationMode4Div].forEach(el => el.classList.add('hidden'));
+                [annotationMode1Div, annotationMode2Div, annotationMode3Div, annotationMode4Div].forEach(el => el.classList.add('hidden'));
                 mode1CompletionStatus.textContent = '';
                 return;
             }
@@ -563,12 +529,9 @@
             if (mode1Completed) {
                 initializeMode2UI();
             } else {
-                [annotationMode2Div, verbalUnitTokenGroupingArea, 
-                 annotationMode3Div, annotationMode4Div].forEach(el => el.classList.add('hidden'));
-                 verbalUnitTokenGroupingDisplay.innerHTML = ''; 
+                [annotationMode2Div, annotationMode3Div, annotationMode4Div].forEach(el => el.classList.add('hidden'));
             }
             checkAndEnableMode4(); 
-            checkAndShowVerbalUnitTokenGrouping();
         }
 
         function initializeMode2UI() {
@@ -579,7 +542,6 @@
             addVerbalUnitBtn.classList.remove('hidden');
             renderVerbalUnitsTable();
             checkAndEnableMode3(); 
-            checkAndShowVerbalUnitTokenGrouping();
         }
 
         function renderVerbalUnitsTable() {
@@ -623,7 +585,6 @@
             });
             renderVerbalUnitsTable();
             checkAndEnableMode3(); 
-            checkAndShowVerbalUnitTokenGrouping();
 
             newVerbalUnitForm.classList.add('hidden');
             addVerbalUnitBtn.classList.remove('hidden');
@@ -645,7 +606,6 @@
             checkAndEnableMode3(); 
             displaySentenceTokens(); 
             checkAndEnableMode4(); 
-            checkAndShowVerbalUnitTokenGrouping();
         }
 
         function checkAndEnableMode3() {
@@ -666,7 +626,6 @@
             }
             displaySentenceTokens(); 
             checkAndEnableMode4(); 
-            checkAndShowVerbalUnitTokenGrouping();
         }
 
         function populateVerbalUnitSelectForAssignment() {
@@ -691,70 +650,6 @@
         function handleVerbalUnitSelectionForAssignment() {
             currentSelectedVerbalUnitIndex = parseInt(verbalUnitSelectForAssignment.value, 10);
         }
-
-        function findVerbalUnitForToken(tokenURN, verbalUnits) {
-            if (!verbalUnits) return null;
-            for (const vu of verbalUnits) {
-                if (vu.assignedTokenURNs.includes(tokenURN)) return vu;
-            }
-            return null;
-        }
-
-        function renderVerbalUnitTokenGrouping() {
-            verbalUnitTokenGroupingDisplay.innerHTML = '';
-            const ann = getCurrentSentenceAnnotation();
-            if (!ann || !currentSentenceTokens || currentSentenceTokens.length === 0) return;
-
-            let currentLineDiv = null;
-            let previousTokenVU = null;
-
-            const sortedTokens = [...currentSentenceTokens].sort((a, b) => a.sequence - b.sequence);
-
-            for (const token of sortedTokens) {
-                if (token.type !== 'lexical') continue;
-
-                const currentTokenVU = findVerbalUnitForToken(token.urn, ann.verbalUnits);
-
-                if (currentTokenVU) {
-                    if (!currentLineDiv || previousTokenVU !== currentTokenVU) {
-                        currentLineDiv = document.createElement('div');
-                        currentLineDiv.style.paddingLeft = (currentTokenVU.depth * INDENTATION_UNIT_EM) + 'em';
-                        verbalUnitTokenGroupingDisplay.appendChild(currentLineDiv);
-                    } else {
-                        currentLineDiv.appendChild(document.createTextNode(' '));
-                    }
-                    currentLineDiv.appendChild(document.createTextNode(token.text));
-                    previousTokenVU = currentTokenVU;
-                } else {
-                    previousTokenVU = null; 
-                    currentLineDiv = null; 
-                }
-            }
-        }
-
-        function checkAndShowVerbalUnitTokenGrouping() {
-            const ann = getCurrentSentenceAnnotation();
-            const mode2Visible = !annotationMode2Div.classList.contains('hidden');
-            let hasAssignedTokens = false;
-
-            if (ann && ann.verbalUnits) {
-                for (const vu of ann.verbalUnits) {
-                    if (vu.assignedTokenURNs.length > 0) {
-                        hasAssignedTokens = true;
-                        break;
-                    }
-                }
-            }
-
-            if (mode2Visible && hasAssignedTokens) {
-                verbalUnitTokenGroupingArea.classList.remove('hidden');
-                renderVerbalUnitTokenGrouping();
-            } else {
-                verbalUnitTokenGroupingArea.classList.add('hidden');
-                verbalUnitTokenGroupingDisplay.innerHTML = '';
-            }
-        }
-
 
         function getMode4RelevantTokens(ann) {
             const relevantTokensData = []; 
