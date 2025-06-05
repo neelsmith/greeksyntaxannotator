@@ -43,7 +43,7 @@
             border-radius: 3px;
         }
         .lexical-token.connecting-word-highlight {
-            background-color: yellow; /* This will be the base color */
+            background-color: yellow;
         }
         sup {
             color: silver;
@@ -311,7 +311,7 @@
             const currentAnn = getCurrentSentenceAnnotation(); 
             currentSentenceTokens = greeklib.tokens(currentSentenceURN, allTokens);
             
-            displaySentenceTokens(); 
+            displaySentenceTokens(); // This will now apply all relevant highlights
             sentenceDisplayAreaDiv.classList.remove('hidden');
             
             annotationMode1Div.classList.remove('hidden');
@@ -342,27 +342,22 @@
                     tokenTextSpan.dataset.sequence = token.sequence; 
                     tokenTextSpan.onclick = () => handleLexicalTokenClick(token.urn, token.sequence);
 
-                    // Reset highlights for this token before re-applying
-                    tokenTextSpan.classList.remove('connecting-word-highlight'); // Removes explicit yellow background-color
-                    tokenTextSpan.style.backgroundImage = 'none'; // Clear potential VU highlight layer
-                    tokenTextSpan.style.backgroundColor = 'transparent'; // Ensure base is transparent if no class
+                    // Reset background style and connecting word class for this token
+                    tokenTextSpan.style.backgroundColor = 'transparent';
+                    tokenTextSpan.classList.remove('connecting-word-highlight');
 
                     if (currentAnn) {
-                        // Apply connecting word highlight if applicable (sets background-color: yellow via class)
+                        // Apply connecting word highlight if applicable
                         if (token.urn === currentAnn.connectingWordURN) {
                             tokenTextSpan.classList.add('connecting-word-highlight');
                         }
 
-                        // Apply verbal unit highlight if applicable (sets backgroundImage)
+                        // Apply verbal unit highlight if applicable
                         // A token will take the color of the *first* verbal unit it's found in.
                         if (currentAnn.verbalUnits) {
                             for (const vu of currentAnn.verbalUnits) {
                                 if (vu.assignedTokenURNs.includes(token.urn)) {
-                                    // vu.color is like 'rgba(r,g,b,0.5)'
-                                    // Using backgroundImage for the VU color will layer it over backgroundColor.
-                                    // If .connecting-word-highlight is also present, its yellow will be the backgroundColor.
-                                    tokenTextSpan.style.backgroundImage = `linear-gradient(${vu.color}, ${vu.color})`;
-                                    tokenTextSpan.style.backgroundRepeat = 'no-repeat'; // Default, but good to be explicit
+                                    tokenTextSpan.style.backgroundColor = vu.color; // vu.color is rgba with 0.5 opacity
                                     break; 
                                 }
                             }
@@ -578,7 +573,7 @@
                 mode3Status.textContent = "";
                 currentSelectedVerbalUnitIndex = -1;
             }
-            displaySentenceTokens(); 
+            displaySentenceTokens(); // Refresh highlights regardless of Mode 3 visibility
             checkAndEnableMode4(); 
         }
 
@@ -603,6 +598,9 @@
 
         function handleVerbalUnitSelectionForAssignment() {
             currentSelectedVerbalUnitIndex = parseInt(verbalUnitSelectForAssignment.value, 10);
+            // No need to call displaySentenceTokens here, as Mode 3 selection doesn't change the *overall* highlighting
+            // which is now handled by displaySentenceTokens showing all VU assignments.
+            // However, if we wanted the *selected* VU to have a special border or something, this is where it would go.
         }
 
         function getMode4RelevantTokens(ann) {

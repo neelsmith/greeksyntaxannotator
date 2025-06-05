@@ -39,11 +39,11 @@
         }
         .lexical-token {
             cursor: pointer;
-            padding: 1px 2px; 
+            padding: 1px 2px; /* For background visibility */
             border-radius: 3px;
         }
         .lexical-token.connecting-word-highlight {
-            background-color: yellow; /* This will be the base color */
+            background-color: yellow;
         }
         sup {
             color: silver;
@@ -85,10 +85,10 @@
         .mermaid {
             text-align: center;
         }
-        #tokenRelationsTable input[type="number"] {
+        #verbalUnitRelationsTable input[type="number"] {
             width: 60px;
         }
-        #tokenRelationsTable input[type="text"] {
+        #verbalUnitRelationsTable input[type="text"] {
             width: 100px;
         }
     </style>
@@ -134,7 +134,7 @@
             <button id="cancelNewVuBtn">Cancel</button>
         </div>
         <table id="verbalUnitsTable">
-            <thead><tr><th>Syntactic type</th><th>Semantic type</th><th>Depth</th><th>Tokens Assigned</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Syntactic type</th><th>Semantic type</th><th>Depth</th><th>Tokens</th><th>Actions</th></tr></thead>
             <tbody id="verbalUnitsTableBody"></tbody>
         </table>
     </div>
@@ -148,13 +148,14 @@
     </div>
 
     <div id="annotationMode4" class="hidden">
-        <h2 id="mode4Header">Annotation Mode 4: Token Relations</h2>
+        <h2>Annotation Mode 4: Token Relations within Verbal Unit</h2>
+        <p>Define relations for tokens in the verbal unit: <strong id="currentVuForRelationsLabel"></strong></p>
         <div id="mermaidGraphContainer">
             <div id="mermaidDiv" class="mermaid">
                 <!-- Mermaid graph will be rendered here -->
             </div>
         </div>
-        <table id="tokenRelationsTable">
+        <table id="verbalUnitRelationsTable">
             <thead>
                 <tr>
                     <th>Reference</th>
@@ -165,7 +166,7 @@
                     <th>Node 2 Relation</th>
                 </tr>
             </thead>
-            <tbody id="tokenRelationsTableBody"></tbody>
+            <tbody id="verbalUnitRelationsTableBody"></tbody>
         </table>
          <p id="mode4Status" style="font-weight: bold;"></p>
     </div>
@@ -174,13 +175,13 @@
         mermaid.initialize({ startOnLoad: false, theme: 'default' });
 
         // Global variables
-        let allTokens = []; 
-        let currentSentenceTokens = []; 
+        let allTokens = [];
         let currentSentenceURN = null;
-        let annotations = {}; 
-        let currentSelectedVerbalUnitIndex = -1; 
+        let annotations = {}; // Stores annotations per sentence URN
+        let currentSelectedVerbalUnitIndex = -1; // Index in annotations[...].verbalUnits
+        let tokenMapForCurrentSentence = {}; // For quick lookup of token by sequence
 
-        // UI Elements (IDs are fetched here)
+        // UI Elements
         const cexUrlInput = document.getElementById('cexUrl');
         const loadButton = document.getElementById('loadButton');
         const statusMessage = document.getElementById('statusMessage');
@@ -188,10 +189,12 @@
         const sentenceDropdown = document.getElementById('sentenceDropdown');
         const sentenceDisplayAreaDiv = document.getElementById('sentenceDisplayArea');
         const sentenceDisplay = document.getElementById('sentenceDisplay');
+        
         const annotationMode1Div = document.getElementById('annotationMode1');
         const asyndetonCheckbox = document.getElementById('asyndetonCheckbox');
         const mode1Instruction = document.getElementById('mode1Instruction');
         const mode1CompletionStatus = document.getElementById('mode1CompletionStatus');
+
         const annotationMode2Div = document.getElementById('annotationMode2');
         const addVerbalUnitBtn = document.getElementById('addVerbalUnitBtn');
         const newVerbalUnitForm = document.getElementById('newVerbalUnitForm');
@@ -201,13 +204,15 @@
         const confirmNewVuBtn = document.getElementById('confirmNewVuBtn');
         const cancelNewVuBtn = document.getElementById('cancelNewVuBtn');
         const verbalUnitsTableBody = document.getElementById('verbalUnitsTableBody');
+
         const annotationMode3Div = document.getElementById('annotationMode3');
         const verbalUnitSelectForAssignment = document.getElementById('verbalUnitSelectForAssignment');
         const mode3Status = document.getElementById('mode3Status');
+
         const annotationMode4Div = document.getElementById('annotationMode4');
-        const mode4Header = document.getElementById('mode4Header');
+        const currentVuForRelationsLabel = document.getElementById('currentVuForRelationsLabel');
         const mermaidDiv = document.getElementById('mermaidDiv');
-        const tokenRelationsTableBody = document.getElementById('tokenRelationsTableBody');
+        const verbalUnitRelationsTableBody = document.getElementById('verbalUnitRelationsTableBody');
         const mode4Status = document.getElementById('mode4Status');
 
         const SYNTACTIC_TYPES = ["independent clause", "subordinate clause", "circumstantial participle", "attributive participle", "indirect statement with infinitive", "indirect statement with participle"];
@@ -216,9 +221,11 @@
         SYNTACTIC_TYPES.forEach(type => newVuSyntacticTypeSelect.appendChild(new Option(type, type)));
         SEMANTIC_TYPES.forEach(type => newVuSemanticTypeSelect.appendChild(new Option(type, type)));
 
+        // Event Listeners
         loadButton.addEventListener('click', loadCEXData);
         sentenceDropdown.addEventListener('change', handleSentenceChange);
         asyndetonCheckbox.addEventListener('change', handleAsyndetonChange);
+        
         addVerbalUnitBtn.addEventListener('click', () => {
             newVerbalUnitForm.classList.remove('hidden');
             addVerbalUnitBtn.classList.add('hidden');
@@ -244,33 +251,33 @@
                 annotations[currentSentenceURN] = {
                     asyndeton: null,
                     connectingWordURN: null,
-                    verbalUnits: [],
-                    tokenRelations: {} 
+                    verbalUnits: []
                 };
-            }
-            if (!annotations[currentSentenceURN].tokenRelations) {
-                 annotations[currentSentenceURN].tokenRelations = {};
             }
             return annotations[currentSentenceURN];
         }
 
         function generateRandomColor() {
-            const r = Math.floor(Math.random() * 200);
+            const r = Math.floor(Math.random() * 200); // Avoid too light colors
             const g = Math.floor(Math.random() * 200);
             const b = Math.floor(Math.random() * 200);
-            return `rgba(${r},${g},${b},0.5)`;
+            return `rgba(${r},${g},${b},0.5)`; // 50% opacity
         }
         
         function loadCEXData() {
             const url = cexUrlInput.value.trim();
-            if (!url) { updateStatus('Please enter a CEX URL.', true); return; }
+            if (!url) {
+                updateStatus('Please enter a CEX URL.', true); return;
+            }
             updateStatus('Loading CEX data...');
             const parser = new CEXParser();
             parser.loadFromUrl(url)
                 .then(p => {
                     updateStatus('CEX data loaded. Processing...');
                     const ctsDataString = p.getDelimitedData("ctsdata");
-                    if (!ctsDataString) { updateStatus('No "ctsdata" block found in the CEX file.', true); return; }
+                    if (!ctsDataString) {
+                        updateStatus('No "ctsdata" block found in the CEX file.', true); return;
+                    }
                     const ctsLines = ctsDataString.split('\n').filter(line => line.trim() !== '');
                     processCTSData(ctsLines);
                 })
@@ -299,39 +306,39 @@
 
         function handleSentenceChange() {
             currentSentenceURN = sentenceDropdown.value;
-            currentSelectedVerbalUnitIndex = -1; 
+            currentSelectedVerbalUnitIndex = -1; // Reset selected VU
 
             if (!currentSentenceURN) {
                 [sentenceDisplayAreaDiv, annotationMode1Div, annotationMode2Div, annotationMode3Div, annotationMode4Div].forEach(el => el.classList.add('hidden'));
                 sentenceDisplay.innerHTML = '';
-                currentSentenceTokens = [];
                 return;
             }
 
-            const currentAnn = getCurrentSentenceAnnotation(); 
-            currentSentenceTokens = greeklib.tokens(currentSentenceURN, allTokens);
+            getCurrentSentenceAnnotation(); // Ensure it's initialized
+            const sentenceTokens = greeklib.tokens(currentSentenceURN, allTokens);
             
-            displaySentenceTokens(); 
+            // Build tokenMapForCurrentSentence for quick lookups by sequence
+            tokenMapForCurrentSentence = {};
+            sentenceTokens.forEach(token => {
+                if(token.type === 'lexical') tokenMapForCurrentSentence[token.sequence] = token;
+            });
+
+            displaySentenceTokens(sentenceTokens);
             sentenceDisplayAreaDiv.classList.remove('hidden');
             
             annotationMode1Div.classList.remove('hidden');
-            asyndetonCheckbox.checked = currentAnn.asyndeton === true;
-            if (currentAnn.connectingWordURN) { 
-                const cwToken = currentSentenceTokens.find(t => t.urn === currentAnn.connectingWordURN && t.type === 'lexical');
-                if (cwToken) {
-                    ensureTokenRelationEntry(currentAnn, cwToken.sequence, cwToken.text);
-                }
-            }
+            asyndetonCheckbox.checked = annotations[currentSentenceURN].asyndeton === true;
             
             updateMode1StateAndProceed();
         }
         
-        function displaySentenceTokens() {
+        function displaySentenceTokens(tokensToDisplay) {
             sentenceDisplay.innerHTML = '';
             const currentAnn = getCurrentSentenceAnnotation();
+            const selectedVU = (currentAnn && currentSelectedVerbalUnitIndex !== -1) ? currentAnn.verbalUnits[currentSelectedVerbalUnitIndex] : null;
 
-            for (let i = 0; i < currentSentenceTokens.length; i++) {
-                const token = currentSentenceTokens[i];
+            for (let i = 0; i < tokensToDisplay.length; i++) {
+                const token = tokensToDisplay[i];
                 const tokenOuterSpan = document.createElement('span');
                 const tokenTextSpan = document.createElement('span');
                 tokenTextSpan.textContent = token.text;
@@ -339,34 +346,14 @@
                 if (token.type === 'lexical') {
                     tokenTextSpan.classList.add('lexical-token');
                     tokenTextSpan.dataset.urn = token.urn;
-                    tokenTextSpan.dataset.sequence = token.sequence; 
+                    tokenTextSpan.dataset.sequence = token.sequence; // Store sequence for easier access
                     tokenTextSpan.onclick = () => handleLexicalTokenClick(token.urn, token.sequence);
 
-                    // Reset highlights for this token before re-applying
-                    tokenTextSpan.classList.remove('connecting-word-highlight'); // Removes explicit yellow background-color
-                    tokenTextSpan.style.backgroundImage = 'none'; // Clear potential VU highlight layer
-                    tokenTextSpan.style.backgroundColor = 'transparent'; // Ensure base is transparent if no class
-
-                    if (currentAnn) {
-                        // Apply connecting word highlight if applicable (sets background-color: yellow via class)
-                        if (token.urn === currentAnn.connectingWordURN) {
-                            tokenTextSpan.classList.add('connecting-word-highlight');
-                        }
-
-                        // Apply verbal unit highlight if applicable (sets backgroundImage)
-                        // A token will take the color of the *first* verbal unit it's found in.
-                        if (currentAnn.verbalUnits) {
-                            for (const vu of currentAnn.verbalUnits) {
-                                if (vu.assignedTokenURNs.includes(token.urn)) {
-                                    // vu.color is like 'rgba(r,g,b,0.5)'
-                                    // Using backgroundImage for the VU color will layer it over backgroundColor.
-                                    // If .connecting-word-highlight is also present, its yellow will be the backgroundColor.
-                                    tokenTextSpan.style.backgroundImage = `linear-gradient(${vu.color}, ${vu.color})`;
-                                    tokenTextSpan.style.backgroundRepeat = 'no-repeat'; // Default, but good to be explicit
-                                    break; 
-                                }
-                            }
-                        }
+                    if (currentAnn && token.urn === currentAnn.connectingWordURN) {
+                        tokenTextSpan.classList.add('connecting-word-highlight');
+                    }
+                    if (selectedVU && selectedVU.assignedTokenURNs.includes(token.urn)) {
+                        tokenTextSpan.style.backgroundColor = selectedVU.color;
                     }
                     
                     tokenOuterSpan.appendChild(tokenTextSpan);
@@ -374,7 +361,7 @@
                     sup.textContent = token.sequence;
                     tokenOuterSpan.appendChild(sup);
 
-                    const nextToken = (i + 1 < currentSentenceTokens.length) ? currentSentenceTokens[i + 1] : null;
+                    const nextToken = (i + 1 < tokensToDisplay.length) ? tokensToDisplay[i + 1] : null;
                     if (!nextToken || nextToken.type !== 'punctuation') {
                         tokenOuterSpan.appendChild(document.createTextNode(' '));
                     }
@@ -395,61 +382,69 @@
             if (!ann) return;
             ann.asyndeton = asyndetonCheckbox.checked;
             if (ann.asyndeton) {
-                ann.connectingWordURN = null; 
+                ann.connectingWordURN = null;
+                const sentenceTokens = greeklib.tokens(currentSentenceURN, allTokens);
+                displaySentenceTokens(sentenceTokens); // Re-render to remove highlight
             }
-            displaySentenceTokens(); 
             updateMode1StateAndProceed();
-        }
-
-        function ensureTokenRelationEntry(ann, tokenSequence, tokenText) {
-            if (!ann.tokenRelations) {
-                ann.tokenRelations = {};
-            }
-            if (!ann.tokenRelations[tokenSequence]) {
-                ann.tokenRelations[tokenSequence] = {
-                    tokenText: tokenText,
-                    node1Sequence: null, node1Rel: null,
-                    node2Sequence: null, node2Rel: null
-                };
-            } else {
-                ann.tokenRelations[tokenSequence].tokenText = tokenText;
-            }
         }
 
         function handleLexicalTokenClick(urn, sequence) {
             const ann = getCurrentSentenceAnnotation();
             if (!ann) return;
 
-            const clickedTokenObject = currentSentenceTokens.find(t => t.urn === urn && t.type === 'lexical');
-            if (!clickedTokenObject) return; 
-
-            let mode1Pending = (ann.asyndeton === null || ann.asyndeton === false) && !ann.connectingWordURN;
-            if (annotationMode1Div.classList.contains('hidden')) mode1Pending = false;
-
-
-            if (mode1Pending && !asyndetonCheckbox.checked) {
+            // Mode 1: Connecting Word selection
+            if (!annotationMode1Div.classList.contains('hidden') && !ann.asyndeton && 
+                !(ann.asyndeton === false && ann.connectingWordURN)) {
                 ann.connectingWordURN = urn;
-                ann.asyndeton = false; 
+                ann.asyndeton = false;
                 asyndetonCheckbox.checked = false;
-                ensureTokenRelationEntry(ann, sequence, clickedTokenObject.text);
-                displaySentenceTokens();
+                const sentenceTokens = greeklib.tokens(currentSentenceURN, allTokens);
+                displaySentenceTokens(sentenceTokens); // Re-render to apply/update highlight
                 updateMode1StateAndProceed();
-                return; 
+                return; // Stop further processing if it was for Mode 1
             }
 
+            // Mode 3: Token assignment to selected Verbal Unit
             if (!annotationMode3Div.classList.contains('hidden') && currentSelectedVerbalUnitIndex !== -1) {
                 const selectedVU = ann.verbalUnits[currentSelectedVerbalUnitIndex];
                 const tokenIndexInVU = selectedVU.assignedTokenURNs.indexOf(urn);
 
-                if (tokenIndexInVU > -1) { 
+                if (tokenIndexInVU > -1) { // Token is already in this VU, remove it
                     selectedVU.assignedTokenURNs.splice(tokenIndexInVU, 1);
-                } else { 
+                    // Also remove its entry from relations if it exists
+                    if (selectedVU.relations[sequence]) {
+                        delete selectedVU.relations[sequence];
+                        // Need to check if this token was a target for other tokens and clear those too
+                        for (const refSeq in selectedVU.relations) {
+                            if (selectedVU.relations[refSeq].node1Sequence === sequence) {
+                                selectedVU.relations[refSeq].node1Sequence = null;
+                                selectedVU.relations[refSeq].node1Rel = null;
+                            }
+                            if (selectedVU.relations[refSeq].node2Sequence === sequence) {
+                                selectedVU.relations[refSeq].node2Sequence = null;
+                                selectedVU.relations[refSeq].node2Rel = null;
+                            }
+                        }
+                    }
+                } else { // Token not in this VU, add it
                     selectedVU.assignedTokenURNs.push(urn);
-                    ensureTokenRelationEntry(ann, sequence, clickedTokenObject.text);
+                    // Initialize its entry in relations
+                    if (!selectedVU.relations[sequence]) {
+                         const tokenObj = allTokens.find(t => t.urn === urn);
+                         if (tokenObj) {
+                            selectedVU.relations[sequence] = { 
+                                tokenText: tokenObj.text, 
+                                node1Sequence: null, node1Rel: null, 
+                                node2Sequence: null, node2Rel: null 
+                            };
+                         }
+                    }
                 }
-                renderVerbalUnitsTable(); 
-                displaySentenceTokens(); 
-                checkAndEnableMode4(); 
+                renderVerbalUnitsTable(); // Update token count display
+                const sentenceTokens = greeklib.tokens(currentSentenceURN, allTokens);
+                displaySentenceTokens(sentenceTokens); // Re-render for VU color
+                checkAndEnableMode4();
             }
         }
         
@@ -470,12 +465,9 @@
             } else if (ann.asyndeton === false && ann.connectingWordURN) {
                 mode1Instruction.classList.add('hidden');
                 mode1CompletionStatus.textContent = "Mode 1 (Connecting Word) complete.";
-                const cwToken = currentSentenceTokens.find(t => t.urn === ann.connectingWordURN && t.type === 'lexical');
-                if(cwToken) ensureTokenRelationEntry(ann, cwToken.sequence, cwToken.text);
-
-            } else { 
-                asyndetonCheckbox.checked = false; 
-                ann.asyndeton = false; 
+            } else {
+                ann.asyndeton = false; // Default
+                asyndetonCheckbox.checked = false;
                 mode1Instruction.classList.remove('hidden');
                 mode1CompletionStatus.textContent = "Mode 1 pending: Complete selection or check asyndeton.";
             }
@@ -485,7 +477,6 @@
             } else {
                 [annotationMode2Div, annotationMode3Div, annotationMode4Div].forEach(el => el.classList.add('hidden'));
             }
-            checkAndEnableMode4(); 
         }
 
         function initializeMode2UI() {
@@ -495,7 +486,7 @@
             newVerbalUnitForm.classList.add('hidden');
             addVerbalUnitBtn.classList.remove('hidden');
             renderVerbalUnitsTable();
-            checkAndEnableMode3(); 
+            checkAndEnableMode3(); // Check if Mode 3 can be enabled
         }
 
         function renderVerbalUnitsTable() {
@@ -509,7 +500,7 @@
                 row.insertCell().textContent = unit.syntacticType;
                 row.insertCell().textContent = unit.semanticType;
                 row.insertCell().textContent = unit.depth;
-                row.insertCell().textContent = unit.assignedTokenURNs.length;
+                row.insertCell().textContent = unit.assignedTokenURNs.length; // Display token count
                 
                 const actionsCell = row.insertCell();
                 const deleteButton = document.createElement('button');
@@ -527,18 +518,22 @@
             const semanticType = newVuSemanticTypeSelect.value;
             const depth = parseInt(newVuDepthInput.value, 10);
 
-            if (isNaN(depth) || depth < 0) { alert("Depth must be a non-negative integer."); return; }
+            if (isNaN(depth) || depth < 0) {
+                alert("Depth must be a non-negative integer."); return;
+            }
             
+            // Add new verbal unit with initial empty assignments and relations
             ann.verbalUnits.push({ 
-                id: Date.now(), 
+                id: Date.now(), // Simple unique ID
                 syntacticType, 
                 semanticType, 
                 depth,
                 color: generateRandomColor(),
-                assignedTokenURNs: [] 
+                assignedTokenURNs: [],
+                relations: {} // Initialize as object: { sequence: { tokenText, node1Seq, node1Rel, ...}}
             });
             renderVerbalUnitsTable();
-            checkAndEnableMode3(); 
+            checkAndEnableMode3(); // Update Mode 3 based on new VU
 
             newVerbalUnitForm.classList.add('hidden');
             addVerbalUnitBtn.classList.remove('hidden');
@@ -546,20 +541,20 @@
 
         function handleDeleteVerbalUnit(index) {
             const ann = getCurrentSentenceAnnotation();
-            if (!ann || !ann.verbalUnits || index < 0 || index >= ann.verbalUnits.length) return;
-            
+            if (!ann) return;
             ann.verbalUnits.splice(index, 1);
             
+            // If the deleted VU was selected for assignment, reset selection
             if (currentSelectedVerbalUnitIndex === index) {
-                currentSelectedVerbalUnitIndex = -1; 
+                currentSelectedVerbalUnitIndex = -1;
             } else if (currentSelectedVerbalUnitIndex > index) {
-                currentSelectedVerbalUnitIndex--; 
+                currentSelectedVerbalUnitIndex--; // Adjust index if an earlier item was removed
             }
 
             renderVerbalUnitsTable();
-            checkAndEnableMode3(); 
-            displaySentenceTokens(); 
-            checkAndEnableMode4(); 
+            checkAndEnableMode3(); // Re-evaluate Mode 3 and 4
+            const sentenceTokens = greeklib.tokens(currentSentenceURN, allTokens); // Re-render sentence to remove highlights if any
+            displaySentenceTokens(sentenceTokens);
         }
 
         function checkAndEnableMode3() {
@@ -568,18 +563,24 @@
                 annotationMode3Div.classList.remove('hidden');
                 populateVerbalUnitSelectForAssignment();
                 mode3Status.textContent = "Select a verbal unit to assign tokens.";
-                
-                if (currentSelectedVerbalUnitIndex === -1 || currentSelectedVerbalUnitIndex >= ann.verbalUnits.length) {
+                // Automatically select first VU if none is selected, or maintain current if valid
+                if (currentSelectedVerbalUnitIndex === -1 && ann.verbalUnits.length > 0) {
+                    currentSelectedVerbalUnitIndex = 0;
+                }
+                if (currentSelectedVerbalUnitIndex >= ann.verbalUnits.length) { // current selection invalid
                      currentSelectedVerbalUnitIndex = ann.verbalUnits.length > 0 ? 0 : -1;
                 }
                 verbalUnitSelectForAssignment.value = currentSelectedVerbalUnitIndex;
+
+                const sentenceTokens = greeklib.tokens(currentSentenceURN, allTokens); // Re-render sentence for potential new highlights
+                displaySentenceTokens(sentenceTokens);
+                checkAndEnableMode4(); // Check if Mode 4 can be enabled for the (newly) selected VU
             } else {
                 annotationMode3Div.classList.add('hidden');
                 mode3Status.textContent = "";
-                currentSelectedVerbalUnitIndex = -1;
+                currentSelectedVerbalUnitIndex = -1; // No VUs, so no selection
+                checkAndEnableMode4(); // This will hide Mode 4
             }
-            displaySentenceTokens(); 
-            checkAndEnableMode4(); 
         }
 
         function populateVerbalUnitSelectForAssignment() {
@@ -591,10 +592,11 @@
                     verbalUnitSelectForAssignment.appendChild(new Option(optionText, index));
                 });
             }
-            if (currentSelectedVerbalUnitIndex !== -1 && currentSelectedVerbalUnitIndex < (ann ? ann.verbalUnits.length : 0)) {
+            // Restore selection if possible
+            if (currentSelectedVerbalUnitIndex !== -1 && currentSelectedVerbalUnitIndex < ann.verbalUnits.length) {
                 verbalUnitSelectForAssignment.value = currentSelectedVerbalUnitIndex;
-            } else if (ann && ann.verbalUnits.length > 0) {
-                 verbalUnitSelectForAssignment.value = "0";
+            } else if (ann.verbalUnits.length > 0) {
+                 verbalUnitSelectForAssignment.value = "0"; // Default to first if selection lost
                  currentSelectedVerbalUnitIndex = 0;
             } else {
                  currentSelectedVerbalUnitIndex = -1;
@@ -603,164 +605,190 @@
 
         function handleVerbalUnitSelectionForAssignment() {
             currentSelectedVerbalUnitIndex = parseInt(verbalUnitSelectForAssignment.value, 10);
-        }
-
-        function getMode4RelevantTokens(ann) {
-            const relevantTokensData = []; 
-            const includedSequences = new Set();
-
-            if (!ann) return relevantTokensData;
-
-            if (ann.connectingWordURN) {
-                const cwToken = currentSentenceTokens.find(t => t.urn === ann.connectingWordURN && t.type === 'lexical');
-                if (cwToken) {
-                    if (!includedSequences.has(cwToken.sequence)) {
-                        relevantTokensData.push({ sequence: cwToken.sequence, text: cwToken.text, urn: cwToken.urn });
-                        includedSequences.add(cwToken.sequence);
-                        ensureTokenRelationEntry(ann, cwToken.sequence, cwToken.text);
-                    }
-                }
-            }
-
-            if (ann.verbalUnits) {
-                ann.verbalUnits.forEach(vu => {
-                    vu.assignedTokenURNs.forEach(urn => {
-                        const token = currentSentenceTokens.find(t => t.urn === urn && t.type === 'lexical');
-                        if (token) {
-                             if (!includedSequences.has(token.sequence)) {
-                                relevantTokensData.push({ sequence: token.sequence, text: token.text, urn: token.urn });
-                                includedSequences.add(token.sequence);
-                                ensureTokenRelationEntry(ann, token.sequence, token.text);
-                            }
-                        }
-                    });
-                });
-            }
-            relevantTokensData.sort((a, b) => a.sequence - b.sequence);
-            return relevantTokensData;
+            const sentenceTokens = greeklib.tokens(currentSentenceURN, allTokens);
+            displaySentenceTokens(sentenceTokens); // Re-render sentence with highlights for the new VU
+            checkAndEnableMode4(); // Check Mode 4 based on new VU selection
         }
 
         function checkAndEnableMode4() {
             const ann = getCurrentSentenceAnnotation();
-            if (!ann) {
-                annotationMode4Div.classList.add('hidden'); return;
-            }
-
-            const relevantTokens = getMode4RelevantTokens(ann);
-
-            if (relevantTokens.length > 1) {
-                annotationMode4Div.classList.remove('hidden');
-                mode4Header.textContent = `Annotation Mode 4: Token Relations (Sentence Global)`;
-                
-                populateTokenRelationsTable(relevantTokens, ann.tokenRelations);
-                renderMermaidGraph(relevantTokens, ann.tokenRelations);
-                mode4Status.textContent = "";
+            if (currentSelectedVerbalUnitIndex !== -1 && ann && ann.verbalUnits[currentSelectedVerbalUnitIndex]) {
+                const selectedVU = ann.verbalUnits[currentSelectedVerbalUnitIndex];
+                if (selectedVU.assignedTokenURNs.length > 1) {
+                    annotationMode4Div.classList.remove('hidden');
+                    currentVuForRelationsLabel.textContent = `VU ${currentSelectedVerbalUnitIndex + 1}: ${selectedVU.syntacticType}`;
+                    populateRelationsTable(selectedVU);
+                    renderMermaidGraph(selectedVU);
+                    mode4Status.textContent = "";
+                } else {
+                    annotationMode4Div.classList.add('hidden');
+                    mode4Status.textContent = "Mode 4 requires at least 2 tokens assigned to the selected verbal unit.";
+                    mermaidDiv.innerHTML = ""; // Clear graph
+                }
             } else {
                 annotationMode4Div.classList.add('hidden');
-                mode4Status.textContent = "Mode 4 requires at least 2 tokens (from any Verbal Unit or as Connecting Word).";
-                mermaidDiv.innerHTML = ""; 
+                mode4Status.textContent = "";
+                 mermaidDiv.innerHTML = ""; // Clear graph
             }
         }
 
-        function populateTokenRelationsTable(relevantTokens, globalRelations) {
-            tokenRelationsTableBody.innerHTML = '';
-            const validTokenSequencesInTable = new Set(relevantTokens.map(t => t.sequence));
+        function populateRelationsTable(verbalUnit) {
+            verbalUnitRelationsTableBody.innerHTML = '';
+            const assignedLexicalTokens = verbalUnit.assignedTokenURNs
+                .map(urn => allTokens.find(t => t.urn === urn))
+                .filter(token => token && token.type === 'lexical')
+                .sort((a,b) => a.sequence - b.sequence); // Sort by sequence for consistent order
 
-            relevantTokens.forEach(token => {
+            const validTokenSequencesInVU = new Set(assignedLexicalTokens.map(t => t.sequence));
+
+            assignedLexicalTokens.forEach(token => {
                 const refSeq = token.sequence;
-                if (!globalRelations[refSeq]) {
-                     ensureTokenRelationEntry(getCurrentSentenceAnnotation(), refSeq, token.text);
+                const tokenText = token.text;
+
+                // Ensure relation entry exists
+                if (!verbalUnit.relations[refSeq]) {
+                    verbalUnit.relations[refSeq] = { tokenText: tokenText, node1Sequence: null, node1Rel: null, node2Sequence: null, node2Rel: null };
                 }
-                const relationData = globalRelations[refSeq];
+                const relationData = verbalUnit.relations[refSeq];
+                // Update tokenText in case it was stale (though unlikely if URNs are primary key)
+                relationData.tokenText = tokenText; 
 
-                const row = tokenRelationsTableBody.insertRow();
+
+                const row = verbalUnitRelationsTableBody.insertRow();
                 row.insertCell().textContent = refSeq;
-                row.insertCell().textContent = token.text; 
+                row.insertCell().textContent = tokenText;
 
-                const createInput = (type, value, onChangeCallback) => {
-                    const input = document.createElement('input');
-                    input.type = type;
-                    input.value = value !== null && value !== undefined ? value : '';
-                    input.onchange = onChangeCallback;
-                    return input;
+                // Node 1 Sequence
+                const node1Cell = row.insertCell();
+                const node1Input = document.createElement('input');
+                node1Input.type = 'number';
+                node1Input.value = relationData.node1Sequence !== null ? relationData.node1Sequence : '';
+                node1Input.onchange = (e) => {
+                    const val = e.target.value === '' ? null : parseInt(e.target.value, 10);
+                    if (val !== null && !validTokenSequencesInVU.has(val)) {
+                        alert(`Invalid Node 1 ID: ${val}. Must be a reference of a token in this verbal unit.`);
+                        e.target.value = relationData.node1Sequence !== null ? relationData.node1Sequence : ''; // Revert
+                        return;
+                    }
+                    relationData.node1Sequence = val;
+                    if(val === null) relationData.node1Rel = null; // Clear relation if node cleared
+                    renderMermaidGraph(verbalUnit);
+                    populateRelationsTable(verbalUnit); // Refresh table to reflect potential clearing of rel
                 };
-                
-                const createNumberInput = (currentValue, key, relationData) => {
-                    return createInput('number', currentValue, (e) => {
-                        const val = e.target.value === '' ? null : parseInt(e.target.value, 10);
-                        if (val !== null && !validTokenSequencesInTable.has(val)) {
-                            alert(`Invalid Node ID: ${val}. Must be a reference of a token listed in this table.`);
-                            e.target.value = relationData[key] !== null ? relationData[key] : ''; 
-                            return;
-                        }
-                        relationData[key] = val;
-                        if (val === null) { 
-                            if (key === 'node1Sequence') relationData.node1Rel = null;
-                            if (key === 'node2Sequence') relationData.node2Rel = null;
-                            populateTokenRelationsTable(getMode4RelevantTokens(getCurrentSentenceAnnotation()), globalRelations); 
-                        }
-                        renderMermaidGraph(getMode4RelevantTokens(getCurrentSentenceAnnotation()), globalRelations);
-                    });
-                };
+                node1Cell.appendChild(node1Input);
 
-                const createTextInput = (currentValue, key, relationData) => {
-                     return createInput('text', currentValue, (e) => {
-                        relationData[key] = e.target.value.trim() || null;
-                        renderMermaidGraph(getMode4RelevantTokens(getCurrentSentenceAnnotation()), globalRelations);
-                    });
+                // Node 1 Relation
+                const node1RelCell = row.insertCell();
+                const node1RelInput = document.createElement('input');
+                node1RelInput.type = 'text';
+                node1RelInput.value = relationData.node1Rel || '';
+                node1RelInput.onchange = (e) => {
+                    relationData.node1Rel = e.target.value.trim() || null;
+                    renderMermaidGraph(verbalUnit);
                 };
+                node1RelCell.appendChild(node1RelInput);
 
-                row.insertCell().appendChild(createNumberInput(relationData.node1Sequence, 'node1Sequence', relationData));
-                row.insertCell().appendChild(createTextInput(relationData.node1Rel, 'node1Rel', relationData));
-                row.insertCell().appendChild(createNumberInput(relationData.node2Sequence, 'node2Sequence', relationData));
-                row.insertCell().appendChild(createTextInput(relationData.node2Rel, 'node2Rel', relationData));
+                // Node 2 Sequence
+                const node2Cell = row.insertCell();
+                const node2Input = document.createElement('input');
+                node2Input.type = 'number';
+                node2Input.value = relationData.node2Sequence !== null ? relationData.node2Sequence : '';
+                node2Input.onchange = (e) => {
+                    const val = e.target.value === '' ? null : parseInt(e.target.value, 10);
+                     if (val !== null && !validTokenSequencesInVU.has(val)) {
+                        alert(`Invalid Node 2 ID: ${val}. Must be a reference of a token in this verbal unit.`);
+                        e.target.value = relationData.node2Sequence !== null ? relationData.node2Sequence : ''; // Revert
+                        return;
+                    }
+                    relationData.node2Sequence = val;
+                    if(val === null) relationData.node2Rel = null; // Clear relation if node cleared
+                    renderMermaidGraph(verbalUnit);
+                    populateRelationsTable(verbalUnit); // Refresh table
+                };
+                node2Cell.appendChild(node2Input);
+
+                // Node 2 Relation
+                const node2RelCell = row.insertCell();
+                const node2RelInput = document.createElement('input');
+                node2RelInput.type = 'text';
+                node2RelInput.value = relationData.node2Rel || '';
+                node2RelInput.onchange = (e) => {
+                    relationData.node2Rel = e.target.value.trim() || null;
+                    renderMermaidGraph(verbalUnit);
+                };
+                node2RelCell.appendChild(node2RelInput);
             });
         }
         
-        async function renderMermaidGraph(relevantTokens, globalRelations) {
-            let mermaidString = 'graph BT\n'; 
+        async function renderMermaidGraph(verbalUnit) {
+            let mermaidString = 'graph BT\n'; // Bottom to Top as per example
+            const nodesInGraph = new Set();
             const edges = [];
-            const tokenTextMap = {};
-            relevantTokens.forEach(t => tokenTextMap[t.sequence] = t.text);
 
-            for (const refSeqStr in globalRelations) {
-                if (!tokenTextMap.hasOwnProperty(refSeqStr)) continue; 
+            const assignedLexicalTokensMap = {};
+            verbalUnit.assignedTokenURNs
+                .map(urn => allTokens.find(t => t.urn === urn))
+                .filter(token => token && token.type === 'lexical')
+                .forEach(token => assignedLexicalTokensMap[token.sequence] = token.text);
 
+            for (const refSeqStr in verbalUnit.relations) {
                 const refSeq = parseInt(refSeqStr, 10);
-                const relation = globalRelations[refSeq];
-                const refTokenText = tokenTextMap[refSeq];
+                const relation = verbalUnit.relations[refSeq];
+                const refTokenText = assignedLexicalTokensMap[refSeq] || `Seq ${refSeq}`;
 
-                const addEdge = (targetSeq, relText) => {
-                    if (targetSeq !== null && relText && tokenTextMap.hasOwnProperty(targetSeq)) {
-                        const targetTokenText = tokenTextMap[targetSeq];
-                        edges.push(`    ${refSeq}["${escapeMermaidLabel(refTokenText)}"] -- "${escapeMermaidLabel(relText)}" --> ${targetSeq}["${escapeMermaidLabel(targetTokenText)}"]`);
-                    }
-                };
-                addEdge(relation.node1Sequence, relation.node1Rel);
-                addEdge(relation.node2Sequence, relation.node2Rel);
+                if (relation.node1Sequence !== null && relation.node1Rel) {
+                    const node1Text = assignedLexicalTokensMap[relation.node1Sequence] || `Seq ${relation.node1Sequence}`;
+                    edges.push(`    ${refSeq}["${escapeMermaidLabel(refTokenText)}"] -- "${escapeMermaidLabel(relation.node1Rel)}" --> ${relation.node1Sequence}["${escapeMermaidLabel(node1Text)}"]`);
+                    nodesInGraph.add(refSeq);
+                    nodesInGraph.add(relation.node1Sequence);
+                }
+                if (relation.node2Sequence !== null && relation.node2Rel) {
+                    const node2Text = assignedLexicalTokensMap[relation.node2Sequence] || `Seq ${relation.node2Sequence}`;
+                    edges.push(`    ${refSeq}["${escapeMermaidLabel(refTokenText)}"] -- "${escapeMermaidLabel(relation.node2Rel)}" --> ${relation.node2Sequence}["${escapeMermaidLabel(node2Text)}"]`);
+                    nodesInGraph.add(refSeq);
+                    nodesInGraph.add(relation.node2Sequence);
+                }
             }
             
+            // Declare nodes that are part of edges but might not be sources
+            // (Mermaid usually handles this implicitly if IDs are just numbers)
+            // Or explicitly:
+            // nodesInGraph.forEach(seq => {
+            //    const text = assignedLexicalTokensMap[seq] || `Seq ${seq}`;
+            //    mermaidString += `    ${seq}["${escapeMermaidLabel(text)}"]\n`;
+            // });
+            // For the "Do not include unlinked nodes" requirement, simply adding edges is enough.
+            // If there are no edges, the graph will be empty (or just "graph BT").
+
             if (edges.length === 0) {
-                mermaidDiv.innerHTML = "No relations defined among the current set of tokens.";
+                mermaidDiv.innerHTML = "No relations defined for this verbal unit.";
                 return;
             }
 
             mermaidString += edges.join('\n');
             
             try {
+                // Ensure the div is clean for Mermaid to process
                 mermaidDiv.innerHTML = ''; 
-                const { svg, bindFunctions } = await mermaid.render('graphSvg-' + Date.now(), mermaidString); 
+                // mermaid.render wants an ID for the new SVG, not the container div itself
+                const { svg, bindFunctions } = await mermaid.render('graphSvg', mermaidString);
                 mermaidDiv.innerHTML = svg;
-                if (bindFunctions) bindFunctions(mermaidDiv);
+                if (bindFunctions) {
+                    bindFunctions(mermaidDiv); // Binds events if any
+                }
             } catch (e) {
-                console.error("Mermaid rendering error:", e, "\nGraph string:\n", mermaidString);
-                mermaidDiv.innerHTML = `Error rendering graph: ${e.message}.<br><pre>${mermaidString.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`;
+                console.error("Mermaid rendering error:", e);
+                mermaidDiv.innerHTML = `Error rendering graph: ${e.message}.<br><pre>${mermaidString}</pre>`;
             }
         }
 
         function escapeMermaidLabel(text) {
             if (typeof text !== 'string') text = String(text);
-            return text.replace(/"/g, '#quot;').replace(/;/g, '#59;'); 
+            // Basic escape for quotes. Mermaid labels can be tricky.
+            // For "text in quotes", Mermaid expects the internal quotes to be #quot; or similar HTML entity.
+            // Or use backticks for labels if more complex characters are involved.
+            // For now, simple quote escaping.
+            return text.replace(/"/g, '#quot;');
         }
 
     </script>

@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-B">
+    <title>Greek Text Annotator</title>
+    <script src="https://cdn.jsdelivr.net/gh/neelsmith/cex-lib/cex.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/neelsmith/greeklib@1.1.0/greeklib.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+        }
+        #dataLoader, #sentenceSelector, #sentenceDisplayArea, #annotationMode1, #annotationMode2 {
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #eee;
+            border-radius: 5px;
+        }
+        h1, h2, h3 {
+            color: #333;
+        }
+        label {
+            margin-right: 10px;
+        }
+        input[type="text"], select {
+            padding: 5px;
+            margin-right: 10px;
+        }
+        button {
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        #statusMessage {
+            font-style: italic;
+            color: #555;
+        }
+        .lexical-token {
+            cursor: pointer;
+        }
+        .lexical-token.connecting-word-highlight {
+            background-color: yellow;
+        }
+        sup {
+            color: silver;
+            font-size: smaller;
+            vertical-align: super;
+            margin-left: 1px; /* Small separation from word */
+        }
+        .punctuation-token {
+            /* No special styling needed for now, but class is there */
+        }
+        .hidden {
+            display: none !important; /* Use important to override potential conflicts */
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f0f0f0;
+        }
+        #newVerbalUnitForm table td {
+            border: none; /* No borders within the form table */
+            padding: 5px 0;
+        }
+        #newVerbalUnitForm {
+            padding: 10px;
+            border: 1px dashed #ccc;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Greek Text Annotator</h1>
+
+    <div id="dataLoader">
+        <label for="cexUrl">CEX URL:</label>
+        <input type="text" id="cexUrl" size="80" value="https://raw.githubusercontent.com/neelsmith/eagl-texts/refs/heads/main/texts/lysias1.cex">
+        <button id="loadButton">Load Data</button>
+        <p id="statusMessage">Enter a CEX URL and click "Load Data".</p>
+    </div>
+
+    <div id="sentenceSelector" class="hidden">
+        <label for="sentenceDropdown">Select Sentence:</label>
+        <select id="sentenceDropdown"></select>
+    </div>
+
+    <div id="sentenceDisplayArea" class="hidden">
+        <h2>Sentence Text</h2>
+        <div id="sentenceDisplay" style="font-size: 1.2em; line-height: 1.8;"></div>
+    </div>
+
+    <div id="annotationMode1" class="hidden">
+        <h2>Annotation Mode 1: Asyndeton / Connecting Word</h2>
+        <label>
+            <input type="checkbox" id="asyndetonCheckbox">
+            This sentence illustrates <em>asyndeton</em>.
+        </label>
+        <p id="mode1Instruction">If not <em>asyndeton</em>, please click the <em>connecting word</em> in the sentence above.</p>
+        <p id="mode1CompletionStatus" style="font-weight: bold;"></p>
+    </div>
+
+    <div id="annotationMode2" class="hidden">
+        <h2>Annotation Mode 2: Verbal Units</h2>
+        <button id="addVerbalUnitBtn">Add New Verbal Unit</button>
+        
+        <div id="newVerbalUnitForm" class="hidden">
+            <h3>Add New Verbal Unit</h3>
+            <table>
+                <tr>
+                    <td><label for="newVuSyntacticType">Syntactic Type:</label></td>
+                    <td><select id="newVuSyntacticType"></select></td>
+                </tr>
+                <tr>
+                    <td><label for="newVuSemanticType">Semantic Type:</label></td>
+                    <td><select id="newVuSemanticType"></select></td>
+                </tr>
+                <tr>
+                    <td><label for="newVuDepth">Depth:</label></td>
+                    <td><input type="number" id="newVuDepth" min="0" value="0"></td>
+                </tr>
+            </table>
+            <button id="confirmNewVuBtn">Confirm Unit</button>
+            <button id="cancelNewVuBtn">Cancel</button>
+        </div>
+
+        <table id="verbalUnitsTable">
+            <thead>
+                <tr>
+                    <th>Syntactic type</th>
+                    <th>Semantic type</th>
+                    <th>Depth</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="verbalUnitsTableBody">
+                <!-- Rows will be added here by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Global variables
+        let allTokens = [];
+        let currentSentenceURN = null;
+        let annotations = {}; // Stores annotations per sentence URN
+
+        // UI Elements
+        const cexUrlInput = document.getElementById('cexUrl');
+        const loadButton = document.getElementById('loadButton');
+        const statusMessage = document.getElementById('statusMessage');
+        const sentenceSelectorDiv = document.getElementById('sentenceSelector');
+        const sentenceDropdown = document.getElementById('sentenceDropdown');
+        const sentenceDisplayAreaDiv = document.getElementById('sentenceDisplayArea');
+        const sentenceDisplay = document.getElementById('sentenceDisplay');
+        
+        const annotationMode1Div = document.getElementById('annotationMode1');
+        const asyndetonCheckbox = document.getElementById('asyndetonCheckbox');
+        const mode1Instruction = document.getElementById('mode1Instruction');
+        const mode1CompletionStatus = document.getElementById('mode1CompletionStatus');
+
+        const annotationMode2Div = document.getElementById('annotationMode2');
+        const addVerbalUnitBtn = document.getElementById('addVerbalUnitBtn');
+        const newVerbalUnitForm = document.getElementById('newVerbalUnitForm');
+        const newVuSyntacticTypeSelect = document.getElementById('newVuSyntacticType');
+        const newVuSemanticTypeSelect = document.getElementById('newVuSemanticType');
+        const newVuDepthInput = document.getElementById('newVuDepth');
+        const confirmNewVuBtn = document.getElementById('confirmNewVuBtn');
+        const cancelNewVuBtn = document.getElementById('cancelNewVuBtn');
+        const verbalUnitsTableBody = document.getElementById('verbalUnitsTableBody');
+
+        const SYNTACTIC_TYPES = ["independent clause", "subordinate clause", "circumstantial participle", "attributive participle", "indirect statement with infinitive", "indirect statement with participle"];
+        const SEMANTIC_TYPES = ["transitive", "intransitive", "linking"];
+
+        // Initialize dropdowns for new verbal unit form
+        SYNTACTIC_TYPES.forEach(type => {
+            const option = document.createElement('option');
+            option.value = type;
+            option.textContent = type;
+            newVuSyntacticTypeSelect.appendChild(option);
+        });
+        SEMANTIC_TYPES.forEach(type => {
+            const option = document.createElement('option');
+            option.value = type;
+            option.textContent = type;
+            newVuSemanticTypeSelect.appendChild(option);
+        });
+
+        // Event Listeners
+        loadButton.addEventListener('click', loadCEXData);
+        sentenceDropdown.addEventListener('change', handleSentenceChange);
+        asyndetonCheckbox.addEventListener('change', handleAsyndetonChange);
+        
+        addVerbalUnitBtn.addEventListener('click', () => {
+            newVerbalUnitForm.classList.remove('hidden');
+            addVerbalUnitBtn.classList.add('hidden');
+            // Reset form fields
+            newVuSyntacticTypeSelect.selectedIndex = 0;
+            newVuSemanticTypeSelect.selectedIndex = 0;
+            newVuDepthInput.value = "0";
+        });
+
+        confirmNewVuBtn.addEventListener('click', handleConfirmVerbalUnit);
+        cancelNewVuBtn.addEventListener('click', () => {
+            newVerbalUnitForm.classList.add('hidden');
+            addVerbalUnitBtn.classList.remove('hidden');
+        });
+
+
+        function updateStatus(message, isError = false) {
+            statusMessage.textContent = message;
+            statusMessage.style.color = isError ? 'red' : '#555';
+        }
+
+        function getCurrentSentenceAnnotation() {
+            if (!currentSentenceURN) return null;
+            if (!annotations[currentSentenceURN]) {
+                annotations[currentSentenceURN] = {
+                    asyndeton: null, // null, true, or false
+                    connectingWordURN: null,
+                    verbalUnits: []
+                };
+            }
+            return annotations[currentSentenceURN];
+        }
+
+        function loadCEXData() {
+            const url = cexUrlInput.value.trim();
+            if (!url) {
+                updateStatus('Please enter a CEX URL.', true);
+                return;
+            }
+            updateStatus('Loading CEX data...');
+            const parser = new CEXParser(); // From cex.js
+            parser.loadFromUrl(url)
+                .then(p => {
+                    updateStatus('CEX data loaded. Processing...');
+                    const ctsDataString = p.getDelimitedData("ctsdata");
+                    if (!ctsDataString) {
+                        updateStatus('No "ctsdata" block found in the CEX file.', true);
+                        return;
+                    }
+                    const ctsLines = ctsDataString.split('\n').filter(line => line.trim() !== '');
+                    processCTSData(ctsLines);
+                })
+                .catch(error => {
+                    console.error('Failed to load from URL:', error);
+                    updateStatus(`Failed to load from URL: ${error.message}`, true);
+                });
+        }
+
+        function processCTSData(ctsLines) {
+            try {
+                allTokens = greeklib.tokenize(ctsLines); // From greeklib.js
+                const sentenceURNs = greeklib.sentences(ctsLines); // From greeklib.js
+
+                sentenceDropdown.innerHTML = '<option value="">-- Select a sentence --</option>'; // Clear previous
+                sentenceURNs.forEach(urn => {
+                    const option = document.createElement('option');
+                    option.value = urn;
+                    option.textContent = urn; // Or a more human-readable version if available
+                    sentenceDropdown.appendChild(option);
+                });
+
+                sentenceSelectorDiv.classList.remove('hidden');
+                sentenceDisplayAreaDiv.classList.add('hidden');
+                annotationMode1Div.classList.add('hidden');
+                annotationMode2Div.classList.add('hidden');
+                updateStatus(`Found ${allTokens.length} tokens and ${sentenceURNs.length} sentences. Please select a sentence.`);
+            } catch (error) {
+                console.error('Error processing CTS data:', error);
+                updateStatus(`Error processing CTS data: ${error.message}`, true);
+            }
+        }
+
+        function handleSentenceChange() {
+            currentSentenceURN = sentenceDropdown.value;
+            if (!currentSentenceURN) {
+                sentenceDisplayAreaDiv.classList.add('hidden');
+                annotationMode1Div.classList.add('hidden');
+                annotationMode2Div.classList.add('hidden');
+                sentenceDisplay.innerHTML = '';
+                return;
+            }
+
+            const currentAnnotation = getCurrentSentenceAnnotation(); // Ensures it's initialized
+            
+            const sentenceTokens = greeklib.tokens(currentSentenceURN, allTokens);
+            displaySentenceTokens(sentenceTokens);
+            sentenceDisplayAreaDiv.classList.remove('hidden');
+            
+            // Reset and setup Mode 1
+            annotationMode1Div.classList.remove('hidden');
+            asyndetonCheckbox.checked = currentAnnotation.asyndeton === true;
+            
+            updateMode1StateAndProceed();
+        }
+        
+        function displaySentenceTokens(tokensToDisplay) {
+            sentenceDisplay.innerHTML = ''; // Clear previous sentence
+            const currentAnn = getCurrentSentenceAnnotation();
+
+            for (let i = 0; i < tokensToDisplay.length; i++) {
+                const token = tokensToDisplay[i];
+                const tokenOuterSpan = document.createElement('span'); // For overall spacing control if needed
+
+                const tokenTextSpan = document.createElement('span');
+                tokenTextSpan.textContent = token.text;
+
+                if (token.type === 'lexical') {
+                    tokenTextSpan.classList.add('lexical-token');
+                    tokenTextSpan.dataset.urn = token.urn;
+                    tokenTextSpan.onclick = () => handleLexicalTokenClick(token.urn);
+
+                    if (currentAnn && token.urn === currentAnn.connectingWordURN) {
+                        tokenTextSpan.classList.add('connecting-word-highlight');
+                    }
+                    
+                    tokenOuterSpan.appendChild(tokenTextSpan);
+
+                    const sup = document.createElement('sup');
+                    sup.textContent = token.sequence;
+                    tokenOuterSpan.appendChild(sup);
+
+                    const nextToken = (i + 1 < tokensToDisplay.length) ? tokensToDisplay[i + 1] : null;
+                    if (!nextToken || nextToken.type !== 'punctuation') {
+                        tokenOuterSpan.appendChild(document.createTextNode(' '));
+                    }
+                } else if (token.type === 'punctuation') {
+                    tokenTextSpan.classList.add('punctuation-token');
+                    tokenOuterSpan.appendChild(tokenTextSpan);
+                    tokenOuterSpan.appendChild(document.createTextNode(' '));
+                } else {
+                    // Other token types, if any (e.g. whitespace, if greeklib produces them)
+                    tokenOuterSpan.appendChild(tokenTextSpan);
+                    // Decide on spacing for other types if necessary
+                    tokenOuterSpan.appendChild(document.createTextNode(' ')); 
+                }
+                sentenceDisplay.appendChild(tokenOuterSpan);
+            }
+        }
+
+        function handleAsyndetonChange() {
+            const ann = getCurrentSentenceAnnotation();
+            if (!ann) return;
+
+            ann.asyndeton = asyndetonCheckbox.checked;
+            if (ann.asyndeton) {
+                ann.connectingWordURN = null; // Asyndeton means no connecting word
+                // Re-display sentence to remove potential highlight
+                const sentenceTokens = greeklib.tokens(currentSentenceURN, allTokens);
+                displaySentenceTokens(sentenceTokens);
+            }
+            updateMode1StateAndProceed();
+        }
+
+        function handleLexicalTokenClick(urn) {
+            const ann = getCurrentSentenceAnnotation();
+            if (!ann || ann.asyndeton === true) { // Only if not asyndeton and mode 1 active
+                return; 
+            }
+
+            // Check if mode 1 is still pending (not yet complete)
+            let mode1Completed = (ann.asyndeton === true) || (ann.asyndeton === false && ann.connectingWordURN !== null);
+            if (mode1Completed && ann.connectingWordURN !== urn) {
+                 // If mode 1 was complete with a different word, and user clicks another,
+                 // we are essentially "re-doing" this part of mode 1.
+                 // Or, if user unchecks asyndeton and then clicks a word.
+            } else if (mode1Completed && ann.connectingWordURN === urn) {
+                // Clicking the same word again does nothing new for mode 1 completion.
+                return;
+            }
+
+
+            ann.connectingWordURN = urn;
+            ann.asyndeton = false; // Explicitly set asyndeton to false if a connecting word is chosen
+            asyndetonCheckbox.checked = false;
+
+            // Re-display sentence to apply/update highlight
+            const sentenceTokens = greeklib.tokens(currentSentenceURN, allTokens);
+            displaySentenceTokens(sentenceTokens);
+            
+            updateMode1StateAndProceed();
+        }
+        
+        function updateMode1StateAndProceed() {
+            const ann = getCurrentSentenceAnnotation();
+            if (!ann) {
+                annotationMode1Div.classList.add('hidden');
+                annotationMode2Div.classList.add('hidden');
+                mode1CompletionStatus.textContent = '';
+                return;
+            }
+
+            annotationMode1Div.classList.remove('hidden');
+            let mode1Completed = false;
+
+            if (ann.asyndeton === true) {
+                mode1Completed = true;
+                mode1Instruction.classList.add('hidden');
+                mode1CompletionStatus.textContent = "Mode 1 (Asyndeton) complete.";
+            } else if (ann.asyndeton === false && ann.connectingWordURN) {
+                mode1Completed = true;
+                mode1Instruction.classList.add('hidden');
+                mode1CompletionStatus.textContent = "Mode 1 (Connecting Word) complete.";
+            } else { // asyndeton is null or false, and no connecting word
+                ann.asyndeton = false; // Default to not asyndeton if not explicitly set
+                asyndetonCheckbox.checked = false;
+                mode1Instruction.classList.remove('hidden');
+                mode1CompletionStatus.textContent = "Mode 1 pending: Please complete the selection above.";
+            }
+
+            if (mode1Completed) {
+                initializeMode2UI();
+            } else {
+                annotationMode2Div.classList.add('hidden'); // Hide mode 2 if mode 1 not complete
+                // Clear Mode 2 form/table if it was visible
+                newVerbalUnitForm.classList.add('hidden');
+                addVerbalUnitBtn.classList.remove('hidden');
+                verbalUnitsTableBody.innerHTML = '';
+            }
+        }
+
+        function initializeMode2UI() {
+            const ann = getCurrentSentenceAnnotation();
+            if (!ann) return;
+
+            annotationMode2Div.classList.remove('hidden');
+            newVerbalUnitForm.classList.add('hidden'); // Hide form initially
+            addVerbalUnitBtn.classList.remove('hidden'); // Show add button
+            renderVerbalUnitsTable();
+        }
+
+        function renderVerbalUnitsTable() {
+            const ann = getCurrentSentenceAnnotation();
+            verbalUnitsTableBody.innerHTML = ''; // Clear existing rows
+
+            if (!ann || !ann.verbalUnits) return;
+
+            ann.verbalUnits.forEach((unit, index) => {
+                const row = verbalUnitsTableBody.insertRow();
+                row.insertCell().textContent = unit.syntacticType;
+                row.insertCell().textContent = unit.semanticType;
+                row.insertCell().textContent = unit.depth;
+                
+                const actionsCell = row.insertCell();
+                const deleteButton = document.createElement('button');
+                deleteButton.textContent = 'Delete';
+                deleteButton.onclick = () => handleDeleteVerbalUnit(index);
+                actionsCell.appendChild(deleteButton);
+            });
+        }
+
+        function handleConfirmVerbalUnit() {
+            const ann = getCurrentSentenceAnnotation();
+            if (!ann) return;
+
+            const syntacticType = newVuSyntacticTypeSelect.value;
+            const semanticType = newVuSemanticTypeSelect.value;
+            const depth = parseInt(newVuDepthInput.value, 10);
+
+            if (isNaN(depth) || depth < 0) {
+                alert("Depth must be a non-negative integer.");
+                return;
+            }
+
+            ann.verbalUnits.push({ syntacticType, semanticType, depth });
+            renderVerbalUnitsTable();
+
+            newVerbalUnitForm.classList.add('hidden');
+            addVerbalUnitBtn.classList.remove('hidden');
+        }
+
+        function handleDeleteVerbalUnit(index) {
+            const ann = getCurrentSentenceAnnotation();
+            if (!ann) return;
+
+            ann.verbalUnits.splice(index, 1);
+            renderVerbalUnitsTable();
+        }
+
+    </script>
+</body>
+</html>
