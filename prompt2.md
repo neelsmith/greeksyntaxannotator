@@ -122,3 +122,6 @@ Lovely! One further tweak. If the sentence illustrates *asyndeton* (no connectin
 
 ---
 This works well. A minor fix: could you ensure that in highlighting what verbal unit a token is assigned to, each verbal unit is represented by a different randomly chosen color?
+
+---
+Great! I'd like to make two minor adjustments to the display without in any way changing the functionality. 1) Could you position the block labelled "Sentence Text" below the block labelled "Annotation Mode 1: Asyndeton / Connecting Word" and above the block labelled "Annotation Mode 2: Verbal Units"? 2) When the user chooses a sentence from the menu, could you display right below the menu the integer index of the user's choice? This value should be 1-based, disregarding the labelling instruction "-- Select a sentence --". **Example**: if the user chose the first item after "-- Select a sentence --", the index value would be `1`.

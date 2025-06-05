@@ -92,6 +92,11 @@
         #tokenRelationsTable select { 
             width: 150px;
         }
+        #selectedSentenceIndexDisplay {
+            margin-top: 5px;
+            font-size: 0.9em;
+            color: #666;
+        }
     </style>
 </head>
 <body>
@@ -107,11 +112,7 @@
     <div id="sentenceSelector" class="hidden">
         <label for="sentenceDropdown">Select Sentence:</label>
         <select id="sentenceDropdown"></select>
-    </div>
-
-    <div id="sentenceDisplayArea" class="hidden">
-        <h2>Sentence Text</h2>
-        <div id="sentenceDisplay" style="font-size: 1.2em; line-height: 2;"></div>
+        <p id="selectedSentenceIndexDisplay"></p> 
     </div>
 
     <div id="annotationMode1" class="hidden">
@@ -119,6 +120,11 @@
         <label><input type="checkbox" id="asyndetonCheckbox"> This sentence illustrates <em>asyndeton</em>.</label>
         <p id="mode1Instruction">If not <em>asyndeton</em>, please click the <em>connecting word</em> in the sentence above.</p>
         <p id="mode1CompletionStatus" style="font-weight: bold;"></p>
+    </div>
+
+    <div id="sentenceDisplayArea" class="hidden"> <!-- MOVED HERE -->
+        <h2>Sentence Text</h2>
+        <div id="sentenceDisplay" style="font-size: 1.2em; line-height: 2;"></div>
     </div>
 
     <div id="annotationMode2" class="hidden">
@@ -187,6 +193,7 @@
         const statusMessage = document.getElementById('statusMessage');
         const sentenceSelectorDiv = document.getElementById('sentenceSelector');
         const sentenceDropdown = document.getElementById('sentenceDropdown');
+        const selectedSentenceIndexDisplay = document.getElementById('selectedSentenceIndexDisplay'); // New element
         const sentenceDisplayAreaDiv = document.getElementById('sentenceDisplayArea');
         const sentenceDisplay = document.getElementById('sentenceDisplay');
         const annotationMode1Div = document.getElementById('annotationMode1');
@@ -301,6 +308,7 @@
                 sentenceURNs.forEach(urn => sentenceDropdown.appendChild(new Option(urn, urn)));
 
                 sentenceSelectorDiv.classList.remove('hidden');
+                selectedSentenceIndexDisplay.textContent = ''; // Clear index on new data load
                 [sentenceDisplayAreaDiv, annotationMode1Div, annotationMode2Div, annotationMode3Div, annotationMode4Div].forEach(el => el.classList.add('hidden'));
                 updateStatus(`Found ${allTokens.length} tokens and ${sentenceURNs.length} sentences. Please select a sentence.`);
             } catch (error) {
@@ -313,18 +321,23 @@
             currentSentenceURN = sentenceDropdown.value;
             currentSelectedVerbalUnitIndex = -1; 
 
-            if (!currentSentenceURN) {
+            if (!currentSentenceURN) { // Placeholder selected
                 [sentenceDisplayAreaDiv, annotationMode1Div, annotationMode2Div, annotationMode3Div, annotationMode4Div].forEach(el => el.classList.add('hidden'));
                 sentenceDisplay.innerHTML = '';
                 currentSentenceTokens = [];
+                selectedSentenceIndexDisplay.textContent = ''; // Clear index display
                 return;
             }
+
+            // Display 1-based index of the selected sentence
+            selectedSentenceIndexDisplay.textContent = `Sentence index: ${sentenceDropdown.selectedIndex}`;
+
 
             const currentAnn = getCurrentSentenceAnnotation(); 
             currentSentenceTokens = greeklib.tokens(currentSentenceURN, allTokens);
             
             displaySentenceTokens(); 
-            sentenceDisplayAreaDiv.classList.remove('hidden');
+            sentenceDisplayAreaDiv.classList.remove('hidden'); 
             
             annotationMode1Div.classList.remove('hidden');
             asyndetonCheckbox.checked = currentAnn.asyndeton === true;
