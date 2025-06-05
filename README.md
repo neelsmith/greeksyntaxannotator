@@ -1,6 +1,8 @@
 # `greeksyntaxannotator`
 
-> *Work in progress on a vibe-coded single-page web app for annotating the syntax of ancient Greek.*
+> *A vibe-coded single-page web app for annotating the syntax of ancient Greek.*
+
+https://neelsmith.github.io/GreekSyntax
 
 
 ## Screen shot

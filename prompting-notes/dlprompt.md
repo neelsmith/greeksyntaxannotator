@@ -27,3 +27,12 @@ Could you implement this?
 ---
 
 Perfect!
+
+---
+
+Can you format the indentation of the "Verbal Unit Token Grouping" section using CSS with a non-monospaced font?
+
+
+---
+
+Beautiful! Now a couple of formatting additions in the "Verbal Unit Token Grouping" display based on the value of the "Node 1 Relation" column of the "Token Relations" table. Any tokens that have a value of `unit verb` should have a black bounding rectangle; any tokens with value of `subject` should be underlined; any tokens with a value `direct object` should have a double wavy underline.

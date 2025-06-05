@@ -8,7 +8,7 @@
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
     <style>
         body {
-            font-family: sans-serif; /* Default non-monospaced font */
+            font-family: sans-serif;
             line-height: 1.6;
             margin: 20px;
         }
@@ -99,23 +99,9 @@
             font-size: 0.9em;
             color: #666;
         }
-        
-        /* Verbal Unit Token Grouping Styles */
-        #verbalUnitTokenGroupingDisplay {
-            font-size: 1.2em; /* Matches sentence display size */
-            line-height: 1.5; /* Adjust for better readability if needed */
+        #verbalUnitTokenGroupingDisplay div { 
+            margin-bottom: 2px; 
         }
-        .vu-line { /* Common class for each line */
-            margin-bottom: 3px; /* Small gap between lines */
-        }
-        .indent-depth-0 { margin-left: 0em; }
-        .indent-depth-1 { margin-left: 1.5em; } /* Corresponds to INDENTATION_UNIT_EM */
-        .indent-depth-2 { margin-left: 3.0em; }
-        .indent-depth-3 { margin-left: 4.5em; }
-        .indent-depth-4 { margin-left: 6.0em; }
-        .indent-depth-5 { margin-left: 7.5em; }
-        /* Add more .indent-depth-N classes if deeper nesting is expected */
-
         #downloadFilenameInput { 
             width: 250px;
         }
@@ -170,7 +156,7 @@
 
     <div id="verbalUnitTokenGroupingArea" class="hidden"> 
         <h2>Verbal Unit Token Grouping</h2>
-        <div id="verbalUnitTokenGroupingDisplay"></div> {/* Removed inline font-family and font-size here, handled by CSS */}
+        <div id="verbalUnitTokenGroupingDisplay" style="font-family: monospace; font-size: 1.2em;"></div> {/* FONT SIZE ADJUSTED HERE */}
     </div>
 
     <div id="annotationMode3" class="hidden">
@@ -271,7 +257,7 @@
         const ASYNDETON_NODE_ID = 0;
         const ASYNDETON_NODE_TEXT = "asyndeton";
         const ASYNDETON_NODE_URN = "internal:asyndeton_node";
-        // INDENTATION_UNIT_EM is effectively defined in CSS now as 1.5em per depth level
+        const INDENTATION_UNIT_EM = 1.5;
 
 
         SYNTACTIC_TYPES.forEach(type => newVuSyntacticTypeSelect.appendChild(new Option(type, type)));
@@ -751,8 +737,7 @@
                 if (currentTokenVU) {
                     if (!currentLineDiv || previousTokenVU_forGrouping !== currentTokenVU) {
                         currentLineDiv = document.createElement('div');
-                        currentLineDiv.classList.add('vu-line'); // Add common class
-                        currentLineDiv.classList.add(`indent-depth-${currentTokenVU.depth}`); // Add depth-specific class
+                        currentLineDiv.style.paddingLeft = (currentTokenVU.depth * INDENTATION_UNIT_EM) + 'em';
                         verbalUnitTokenGroupingDisplay.appendChild(currentLineDiv);
                     } else {
                         currentLineDiv.appendChild(document.createTextNode(' '));
@@ -860,7 +845,7 @@
                 populateTokenRelationsTable(relevantTokens, ann.tokenRelations);
                 renderMermaidGraph(relevantTokens, ann.tokenRelations);
                 mode4Status.textContent = "";
-                if (hasAnyRelations) { 
+                if (hasAnyRelations) { // Show download only if mode 4 is active AND there are relations
                     downloadAreaDiv.classList.remove('hidden');
                 } else {
                     downloadAreaDiv.classList.add('hidden');
@@ -901,7 +886,7 @@
                         }
                         relData[key] = val;
                         renderMermaidGraph(getMode4RelevantTokens(getCurrentSentenceAnnotation()), globalRelations);
-                        checkAndEnableMode4(); 
+                        checkAndEnableMode4(); // Re-check conditions for Mode 4 and download
                     };
                     return input;
                 };
@@ -924,7 +909,7 @@
                     select.onchange = (e) => {
                         relData[key] = e.target.value || null; 
                         renderMermaidGraph(getMode4RelevantTokens(getCurrentSentenceAnnotation()), globalRelations);
-                        checkAndEnableMode4(); 
+                        checkAndEnableMode4(); // Re-check conditions for Mode 4 and download
                     };
                     return select;
                 };
