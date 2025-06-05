@@ -14,7 +14,7 @@
         }
         #dataLoader, #sentenceSelector, #sentenceDisplayArea, 
         #annotationMode1, #annotationMode2, #verbalUnitTokenGroupingArea, 
-        #annotationMode3, #annotationMode4, #downloadArea { 
+        #annotationMode3, #annotationMode4 {
             margin-bottom: 20px;
             padding: 10px;
             border: 1px solid #eee;
@@ -102,9 +102,6 @@
         #verbalUnitTokenGroupingDisplay div { 
             margin-bottom: 2px; 
         }
-        #downloadFilenameInput { 
-            width: 250px;
-        }
     </style>
 </head>
 <body>
@@ -190,14 +187,6 @@
          <p id="mode4Status" style="font-weight: bold;"></p>
     </div>
 
-    <div id="downloadArea" class="hidden"> 
-        <h2>Download Annotations</h2>
-        <label for="downloadFilenameInput">Filename:</label>
-        <input type="text" id="downloadFilenameInput" value="greek_annotations.cex">
-        <button id="downloadAnnotationsButton">Download Data</button>
-    </div>
-
-
     <script>
         mermaid.initialize({ startOnLoad: false, theme: 'default' });
 
@@ -207,15 +196,11 @@
         let currentSentenceURN = null;
         let annotations = {}; 
         let currentSelectedVerbalUnitIndex = -1; 
-        let sentenceUrnMap = {}; 
 
         // UI Elements 
         const cexUrlInput = document.getElementById('cexUrl');
         const loadButton = document.getElementById('loadButton');
         const statusMessage = document.getElementById('statusMessage');
-        const downloadAreaDiv = document.getElementById('downloadArea'); 
-        const downloadFilenameInput = document.getElementById('downloadFilenameInput'); 
-        const downloadAnnotationsButton = document.getElementById('downloadAnnotationsButton'); 
         const sentenceSelectorDiv = document.getElementById('sentenceSelector');
         const sentenceDropdown = document.getElementById('sentenceDropdown');
         const selectedSentenceIndexDisplay = document.getElementById('selectedSentenceIndexDisplay'); 
@@ -266,7 +251,6 @@
         loadButton.addEventListener('click', loadCEXData);
         sentenceDropdown.addEventListener('change', handleSentenceChange);
         asyndetonCheckbox.addEventListener('change', handleAsyndetonChange);
-        downloadAnnotationsButton.addEventListener('click', handleDownloadAnnotations); 
         addVerbalUnitBtn.addEventListener('click', () => {
             newVerbalUnitForm.classList.remove('hidden');
             addVerbalUnitBtn.classList.add('hidden');
@@ -334,15 +318,9 @@
                 const sentenceURNs = greeklib.sentences(ctsLines);
 
                 sentenceDropdown.innerHTML = '<option value="">-- Select a sentence --</option>';
-                sentenceUrnMap = {}; 
-                sentenceURNs.forEach((urn, index) => {
-                    sentenceDropdown.appendChild(new Option(urn, urn));
-                    sentenceUrnMap[urn] = index + 1; 
-                });
+                sentenceURNs.forEach(urn => sentenceDropdown.appendChild(new Option(urn, urn)));
 
                 sentenceSelectorDiv.classList.remove('hidden');
-                // Keep download area hidden initially, will be shown by checkAndEnableMode4
-                downloadAreaDiv.classList.add('hidden'); 
                 selectedSentenceIndexDisplay.textContent = ''; 
                 [sentenceDisplayAreaDiv, annotationMode1Div, annotationMode2Div, verbalUnitTokenGroupingArea, 
                  annotationMode3Div, annotationMode4Div].forEach(el => el.classList.add('hidden'));
@@ -359,14 +337,14 @@
 
             if (!currentSentenceURN) { 
                 [sentenceDisplayAreaDiv, annotationMode1Div, annotationMode2Div, verbalUnitTokenGroupingArea, 
-                 annotationMode3Div, annotationMode4Div, downloadAreaDiv].forEach(el => el.classList.add('hidden'));
+                 annotationMode3Div, annotationMode4Div].forEach(el => el.classList.add('hidden'));
                 sentenceDisplay.innerHTML = '';
                 currentSentenceTokens = [];
                 selectedSentenceIndexDisplay.textContent = ''; 
                 return;
             }
             
-            selectedSentenceIndexDisplay.textContent = `Selected sentence index: ${sentenceUrnMap[currentSentenceURN]}`;
+            selectedSentenceIndexDisplay.textContent = `Selected sentence index: ${sentenceDropdown.selectedIndex}`;
 
             const currentAnn = getCurrentSentenceAnnotation(); 
             currentSentenceTokens = greeklib.tokens(currentSentenceURN, allTokens);
@@ -379,7 +357,7 @@
             if (currentAnn.connectingWordURN) { 
                 const cwToken = currentSentenceTokens.find(t => t.urn === currentAnn.connectingWordURN && t.type === 'lexical');
                 if (cwToken) {
-                    ensureTokenRelationEntry(currentAnn, cwToken.sequence, cwToken.text, cwToken.urn, cwToken.type);
+                    ensureTokenRelationEntry(currentAnn, cwToken.sequence, cwToken.text);
                 }
             }
             
@@ -451,7 +429,7 @@
 
             if (ann.asyndeton) {
                 ann.connectingWordURN = null; 
-                ensureTokenRelationEntry(ann, ASYNDETON_NODE_ID, ASYNDETON_NODE_TEXT, ASYNDETON_NODE_URN, "internal");
+                ensureTokenRelationEntry(ann, ASYNDETON_NODE_ID, ASYNDETON_NODE_TEXT);
             } else { 
                 if (wasAsyndeton) { 
                     if (ann.tokenRelations && ann.tokenRelations[ASYNDETON_NODE_ID]) {
@@ -475,22 +453,18 @@
             checkAndShowVerbalUnitTokenGrouping();
         }
 
-        function ensureTokenRelationEntry(ann, tokenSequence, tokenText, tokenUrn, tokenType) {
+        function ensureTokenRelationEntry(ann, tokenSequence, tokenText) {
             if (!ann.tokenRelations) {
                 ann.tokenRelations = {};
             }
             if (!ann.tokenRelations[tokenSequence]) {
                 ann.tokenRelations[tokenSequence] = {
                     tokenText: tokenText,
-                    originalUrn: tokenUrn, 
-                    originalType: tokenType, 
                     node1Sequence: null, node1Rel: null,
                     node2Sequence: null, node2Rel: null
                 };
             } else {
                 ann.tokenRelations[tokenSequence].tokenText = tokenText;
-                ann.tokenRelations[tokenSequence].originalUrn = tokenUrn;
-                ann.tokenRelations[tokenSequence].originalType = tokenType;
             }
         }
 
@@ -517,7 +491,7 @@
                         if (rel.node2Sequence === ASYNDETON_NODE_ID) { rel.node2Sequence = null; rel.node2Rel = null;}
                     }
                 }
-                ensureTokenRelationEntry(ann, sequence, clickedTokenObject.text, clickedTokenObject.urn, clickedTokenObject.type);
+                ensureTokenRelationEntry(ann, sequence, clickedTokenObject.text);
                 displaySentenceTokens();
                 updateMode1StateAndProceed();
                 return; 
@@ -525,22 +499,29 @@
 
             if (!annotationMode3Div.classList.contains('hidden') && currentSelectedVerbalUnitIndex !== -1) {
                 const currentVU = ann.verbalUnits[currentSelectedVerbalUnitIndex];
-                
+                let wasInAnotherVU = false;
+
+                // Check if token is in any *other* VU and remove it
                 for (let i = 0; i < ann.verbalUnits.length; i++) {
-                    if (i === currentSelectedVerbalUnitIndex) continue; 
+                    if (i === currentSelectedVerbalUnitIndex) continue; // Skip the currently selected VU for now
                     const otherVU = ann.verbalUnits[i];
                     const tokenIndexInOtherVU = otherVU.assignedTokenURNs.indexOf(urn);
                     if (tokenIndexInOtherVU > -1) {
                         otherVU.assignedTokenURNs.splice(tokenIndexInOtherVU, 1);
+                        wasInAnotherVU = true;
                     }
                 }
 
+                // Now handle assignment to the *current* VU
                 const tokenIndexInCurrentVU = currentVU.assignedTokenURNs.indexOf(urn);
+
                 if (tokenIndexInCurrentVU > -1) {
+                    // Token is in the current VU, so clicking means unassign (toggle off)
                     currentVU.assignedTokenURNs.splice(tokenIndexInCurrentVU, 1);
                 } else {
+                    // Token is not in the current VU (or was just removed from another), so assign it
                     currentVU.assignedTokenURNs.push(urn);
-                    ensureTokenRelationEntry(ann, sequence, clickedTokenObject.text, clickedTokenObject.urn, clickedTokenObject.type);
+                    ensureTokenRelationEntry(ann, sequence, clickedTokenObject.text);
                 }
                 
                 renderVerbalUnitsTable(); 
@@ -554,7 +535,7 @@
             const ann = getCurrentSentenceAnnotation();
             if (!ann) {
                 [annotationMode1Div, annotationMode2Div, verbalUnitTokenGroupingArea, 
-                 annotationMode3Div, annotationMode4Div, downloadAreaDiv].forEach(el => el.classList.add('hidden'));
+                 annotationMode3Div, annotationMode4Div].forEach(el => el.classList.add('hidden'));
                 mode1CompletionStatus.textContent = '';
                 return;
             }
@@ -565,12 +546,12 @@
             if (ann.asyndeton === true) {
                 mode1Instruction.classList.add('hidden');
                 mode1CompletionStatus.textContent = "Mode 1 (Asyndeton) complete.";
-                ensureTokenRelationEntry(ann, ASYNDETON_NODE_ID, ASYNDETON_NODE_TEXT, ASYNDETON_NODE_URN, "internal"); 
+                ensureTokenRelationEntry(ann, ASYNDETON_NODE_ID, ASYNDETON_NODE_TEXT); 
             } else if (ann.asyndeton === false && ann.connectingWordURN) {
                 mode1Instruction.classList.add('hidden');
                 mode1CompletionStatus.textContent = "Mode 1 (Connecting Word) complete.";
                 const cwToken = currentSentenceTokens.find(t => t.urn === ann.connectingWordURN && t.type === 'lexical');
-                if(cwToken) ensureTokenRelationEntry(ann, cwToken.sequence, cwToken.text, cwToken.urn, cwToken.type);
+                if(cwToken) ensureTokenRelationEntry(ann, cwToken.sequence, cwToken.text);
 
             } else { 
                 asyndetonCheckbox.checked = false; 
@@ -583,7 +564,7 @@
                 initializeMode2UI();
             } else {
                 [annotationMode2Div, verbalUnitTokenGroupingArea, 
-                 annotationMode3Div, annotationMode4Div, downloadAreaDiv].forEach(el => el.classList.add('hidden'));
+                 annotationMode3Div, annotationMode4Div].forEach(el => el.classList.add('hidden'));
                  verbalUnitTokenGroupingDisplay.innerHTML = ''; 
             }
             checkAndEnableMode4(); 
@@ -725,19 +706,17 @@
             if (!ann || !currentSentenceTokens || currentSentenceTokens.length === 0) return;
 
             let currentLineDiv = null;
-            let previousTokenVU_forGrouping = null; // Use a different variable name to avoid conflict
+            let previousTokenVU = null;
 
             const sortedTokens = [...currentSentenceTokens].sort((a, b) => a.sequence - b.sequence);
 
             for (const token of sortedTokens) {
                 if (token.type !== 'lexical') continue;
-                // Skip the connector token for this specific display
-                if (ann.connectingWordURN && token.urn === ann.connectingWordURN) continue;
 
                 const currentTokenVU = findVerbalUnitForToken(token.urn, ann.verbalUnits);
 
                 if (currentTokenVU) {
-                    if (!currentLineDiv || previousTokenVU_forGrouping !== currentTokenVU) {
+                    if (!currentLineDiv || previousTokenVU !== currentTokenVU) {
                         currentLineDiv = document.createElement('div');
                         currentLineDiv.style.paddingLeft = (currentTokenVU.depth * INDENTATION_UNIT_EM) + 'em';
                         verbalUnitTokenGroupingDisplay.appendChild(currentLineDiv);
@@ -745,10 +724,9 @@
                         currentLineDiv.appendChild(document.createTextNode(' '));
                     }
                     currentLineDiv.appendChild(document.createTextNode(token.text));
-                    previousTokenVU_forGrouping = currentTokenVU;
+                    previousTokenVU = currentTokenVU;
                 } else {
-                    // If a token is not in any VU (and not the connector), it resets the context
-                    previousTokenVU_forGrouping = null; 
+                    previousTokenVU = null; 
                     currentLineDiv = null; 
                 }
             }
@@ -785,17 +763,17 @@
             if (!ann) return relevantTokensData;
 
             if (ann.asyndeton === true) {
-                relevantTokensData.push({ sequence: ASYNDETON_NODE_ID, text: ASYNDETON_NODE_TEXT, urn: ASYNDETON_NODE_URN, type: "internal" });
+                relevantTokensData.push({ sequence: ASYNDETON_NODE_ID, text: ASYNDETON_NODE_TEXT, urn: ASYNDETON_NODE_URN });
                 includedSequences.add(ASYNDETON_NODE_ID);
-                ensureTokenRelationEntry(ann, ASYNDETON_NODE_ID, ASYNDETON_NODE_TEXT, ASYNDETON_NODE_URN, "internal");
+                ensureTokenRelationEntry(ann, ASYNDETON_NODE_ID, ASYNDETON_NODE_TEXT);
             }
 
             if (ann.connectingWordURN) {
                 const cwToken = currentSentenceTokens.find(t => t.urn === ann.connectingWordURN && t.type === 'lexical');
                 if (cwToken && !includedSequences.has(cwToken.sequence)) {
-                    relevantTokensData.push({ sequence: cwToken.sequence, text: cwToken.text, urn: cwToken.urn, type: cwToken.type });
+                    relevantTokensData.push({ sequence: cwToken.sequence, text: cwToken.text, urn: cwToken.urn });
                     includedSequences.add(cwToken.sequence);
-                    ensureTokenRelationEntry(ann, cwToken.sequence, cwToken.text, cwToken.urn, cwToken.type);
+                    ensureTokenRelationEntry(ann, cwToken.sequence, cwToken.text);
                 }
             }
 
@@ -804,9 +782,9 @@
                     vu.assignedTokenURNs.forEach(urn => {
                         const token = currentSentenceTokens.find(t => t.urn === urn && t.type === 'lexical');
                         if (token && !includedSequences.has(token.sequence)) {
-                            relevantTokensData.push({ sequence: token.sequence, text: token.text, urn: token.urn, type: token.type });
+                            relevantTokensData.push({ sequence: token.sequence, text: token.text, urn: token.urn });
                             includedSequences.add(token.sequence);
-                            ensureTokenRelationEntry(ann, token.sequence, token.text, token.urn, token.type);
+                            ensureTokenRelationEntry(ann, token.sequence, token.text);
                         }
                     });
                 });
@@ -822,24 +800,12 @@
         function checkAndEnableMode4() {
             const ann = getCurrentSentenceAnnotation();
             if (!ann) {
-                annotationMode4Div.classList.add('hidden'); 
-                downloadAreaDiv.classList.add('hidden'); // Also hide download if no sentence
-                return;
+                annotationMode4Div.classList.add('hidden'); return;
             }
 
             const relevantTokens = getMode4RelevantTokens(ann);
             const mode4Threshold = (ann.asyndeton === true && relevantTokens.length >=1) || relevantTokens.length > 1;
 
-            let hasAnyRelations = false;
-            if (ann.tokenRelations) {
-                for (const seq in ann.tokenRelations) {
-                    const rel = ann.tokenRelations[seq];
-                    if (rel.node1Sequence !== null || rel.node2Sequence !== null) {
-                        hasAnyRelations = true;
-                        break;
-                    }
-                }
-            }
 
             if (mode4Threshold) { 
                 annotationMode4Div.classList.remove('hidden');
@@ -848,15 +814,8 @@
                 populateTokenRelationsTable(relevantTokens, ann.tokenRelations);
                 renderMermaidGraph(relevantTokens, ann.tokenRelations);
                 mode4Status.textContent = "";
-                // Show download only if mode 4 is active AND there are relations
-                if (hasAnyRelations) {
-                    downloadAreaDiv.classList.remove('hidden');
-                } else {
-                    downloadAreaDiv.classList.add('hidden');
-                }
             } else {
                 annotationMode4Div.classList.add('hidden');
-                downloadAreaDiv.classList.add('hidden');
                 mode4Status.textContent = "Mode 4 requires at least 2 tokens or an active asyndeton node.";
                 mermaidDiv.innerHTML = ""; 
             }
@@ -869,7 +828,7 @@
             relevantTokens.forEach(token => {
                 const refSeq = token.sequence;
                 if (!globalRelations[refSeq]) {
-                     ensureTokenRelationEntry(getCurrentSentenceAnnotation(), refSeq, token.text, token.urn, token.type);
+                     ensureTokenRelationEntry(getCurrentSentenceAnnotation(), refSeq, token.text);
                 }
                 const relationData = globalRelations[refSeq];
 
@@ -892,10 +851,9 @@
                         if (val === null) { 
                             if (key === 'node1Sequence') relData.node1Rel = null;
                             if (key === 'node2Sequence') relData.node2Rel = null;
-                            // No need to repopulate table for clearing, just re-render graph
+                            populateTokenRelationsTable(getMode4RelevantTokens(getCurrentSentenceAnnotation()), globalRelations); 
                         }
                         renderMermaidGraph(getMode4RelevantTokens(getCurrentSentenceAnnotation()), globalRelations);
-                        checkAndEnableMode4(); // Re-check download visibility
                     };
                     return input;
                 };
@@ -918,7 +876,6 @@
                     select.onchange = (e) => {
                         relData[key] = e.target.value || null; 
                         renderMermaidGraph(getMode4RelevantTokens(getCurrentSentenceAnnotation()), globalRelations);
-                        checkAndEnableMode4(); // Re-check download visibility
                     };
                     return select;
                 };
@@ -974,103 +931,6 @@
         function escapeMermaidLabel(text) {
             if (typeof text !== 'string') text = String(text);
             return text.replace(/"/g, '#quot;').replace(/;/g, '#59;'); 
-        }
-
-        function handleDownloadAnnotations() {
-            let output = "";
-
-            const sentencesHeader = "sentence|sequence|connector";
-            const sentencesData = [];
-            for (const sentenceUrn in annotations) {
-                if (annotations.hasOwnProperty(sentenceUrn)) {
-                    const ann = annotations[sentenceUrn];
-                    const sentenceMenuIndex = sentenceUrnMap[sentenceUrn] || ''; 
-                    const connectorUrn = ann.asyndeton ? '' : (ann.connectingWordURN || '');
-                    sentencesData.push(`${sentenceUrn}|${sentenceMenuIndex}|${connectorUrn}`);
-                }
-            }
-            if (sentencesData.length > 0) {
-                 output += "#!sentences\n";
-                 output += sentencesHeader + "\n";
-                 output += sentencesData.join("\n") + "\n\n";
-            }
-
-            const verbalUnitsHeader = "vuid|syntactic_type|semantic_type|depth|sentence";
-            const verbalUnitsData = [];
-            for (const sentenceUrn in annotations) {
-                if (annotations.hasOwnProperty(sentenceUrn)) {
-                    const ann = annotations[sentenceUrn];
-                    if (ann.verbalUnits) {
-                        ann.verbalUnits.forEach(vu => {
-                            verbalUnitsData.push(`${vu.id}|${vu.syntacticType}|${vu.semanticType}|${vu.depth}|${sentenceUrn}`);
-                        });
-                    }
-                }
-            }
-             if (verbalUnitsData.length > 0) {
-                output += "#!verbal_units\n";
-                output += verbalUnitsHeader + "\n";
-                output += verbalUnitsData.join("\n") + "\n\n";
-            }
-
-            const tokensHeader = "urn|reference|tokentype|text|verbalunit|node1|node1relation|node2|node2relation";
-            const tokensData = [];
-            for (const sentenceUrn in annotations) {
-                if (annotations.hasOwnProperty(sentenceUrn)) {
-                    const ann = annotations[sentenceUrn];
-                    if (ann.tokenRelations) {
-                        for (const refSeq in ann.tokenRelations) {
-                            if (ann.tokenRelations.hasOwnProperty(refSeq)) {
-                                const relData = ann.tokenRelations[refSeq];
-                                
-                                let assignedVuId = '';
-                                if (ann.verbalUnits && relData.originalUrn !== ASYNDETON_NODE_URN) {
-                                    for (const vu of ann.verbalUnits) {
-                                        if (vu.assignedTokenURNs.includes(relData.originalUrn)) {
-                                            assignedVuId = vu.id;
-                                            break;
-                                        }
-                                    }
-                                }
-
-                                tokensData.push([
-                                    relData.originalUrn || '',         
-                                    refSeq,                            
-                                    relData.originalType || '',        
-                                    relData.tokenText || '',           
-                                    assignedVuId,                      
-                                    relData.node1Sequence !== null ? relData.node1Sequence : '', 
-                                    relData.node1Rel || '',            
-                                    relData.node2Sequence !== null ? relData.node2Sequence : '', 
-                                    relData.node2Rel || ''             
-                                ].join("|"));
-                            }
-                        }
-                    }
-                }
-            }
-            if (tokensData.length > 0) {
-                output += "#!tokens\n";
-                output += tokensHeader + "\n";
-                output += tokensData.join("\n") + "\n";
-            }
-            
-
-            if (output.trim() === "") {
-                alert("No annotations to download.");
-                return;
-            }
-
-            const filename = downloadFilenameInput.value.trim() || "greek_annotations.cex";
-            const blob = new Blob([output], { type: 'text/plain;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
         }
 
     </script>

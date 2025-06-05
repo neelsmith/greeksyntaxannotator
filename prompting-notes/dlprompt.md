@@ -11,3 +11,19 @@ The second block will begin with a labelling line `#!verbal_units`, then the pip
 The third block will begin with a labelling line  `#!tokens`, then the pipe-delimited header line `urn|reference|tokentype|text|verbalunit|node1|node1relation|node2|node2relation`.  This will be followed by one line for each token assigned to a verbal unit. It is very important that for the first column record the value of the `urn` property of the `Token` object that was annotated. The remaining columns will have the values of the columns "Reference", "Token", "Node 1 (ID)", "Node 1 Relation", "Node 2 (ID)", and "Node 2 Relation" from the user-edited table.
 
 Please implement this.
+
+--
+
+Great! Let's move the "Download Annotations" section to the bottom of the page, below the table where the user edits relations of tokens. Can you let the user select a name for the local output file, with a default of "greek_annotations.cex" ?
+
+---
+
+Excellent. Two tiny tweaks. 1) Let's keep the "Download Annotations" section hidden until the user has actually defined at least one token realtion in Mode 4. 
+
+2) In the "Verbal Unit Token Grouping" section, we should ignore any connecting word the user has identified. **Example**: Consider a sequence where, of the first 3 tokens, where token 1 belongs to verbal unit 1, token 2 is the connector token, and token 3 belongs to verbal unit. We place token 1 on a line to start the display. We ignore token 2 because it's the connector token. We see that connector 3 belongs to verbal unit 1 and look at the preceding token -- but here that means we should look at token 1 since we're ignoring the connector. We see that token 1 also belongs to verbal unit 1, so we continue token 3 on the same line. 
+
+Could you implement this?
+
+---
+
+Perfect!

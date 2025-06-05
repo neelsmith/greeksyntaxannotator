@@ -102,7 +102,7 @@
         #verbalUnitTokenGroupingDisplay div { 
             margin-bottom: 2px; 
         }
-        #downloadFilenameInput { 
+        #downloadFilenameInput { /* Style for the new filename input */
             width: 250px;
         }
     </style>
@@ -190,7 +190,7 @@
          <p id="mode4Status" style="font-weight: bold;"></p>
     </div>
 
-    <div id="downloadArea" class="hidden"> 
+    <div id="downloadArea" class="hidden"> <!-- MOVED TO BOTTOM (before script) -->
         <h2>Download Annotations</h2>
         <label for="downloadFilenameInput">Filename:</label>
         <input type="text" id="downloadFilenameInput" value="greek_annotations.cex">
@@ -214,7 +214,7 @@
         const loadButton = document.getElementById('loadButton');
         const statusMessage = document.getElementById('statusMessage');
         const downloadAreaDiv = document.getElementById('downloadArea'); 
-        const downloadFilenameInput = document.getElementById('downloadFilenameInput'); 
+        const downloadFilenameInput = document.getElementById('downloadFilenameInput'); // New
         const downloadAnnotationsButton = document.getElementById('downloadAnnotationsButton'); 
         const sentenceSelectorDiv = document.getElementById('sentenceSelector');
         const sentenceDropdown = document.getElementById('sentenceDropdown');
@@ -341,8 +341,7 @@
                 });
 
                 sentenceSelectorDiv.classList.remove('hidden');
-                // Keep download area hidden initially, will be shown by checkAndEnableMode4
-                downloadAreaDiv.classList.add('hidden'); 
+                downloadAreaDiv.classList.remove('hidden'); 
                 selectedSentenceIndexDisplay.textContent = ''; 
                 [sentenceDisplayAreaDiv, annotationMode1Div, annotationMode2Div, verbalUnitTokenGroupingArea, 
                  annotationMode3Div, annotationMode4Div].forEach(el => el.classList.add('hidden'));
@@ -359,7 +358,7 @@
 
             if (!currentSentenceURN) { 
                 [sentenceDisplayAreaDiv, annotationMode1Div, annotationMode2Div, verbalUnitTokenGroupingArea, 
-                 annotationMode3Div, annotationMode4Div, downloadAreaDiv].forEach(el => el.classList.add('hidden'));
+                 annotationMode3Div, annotationMode4Div].forEach(el => el.classList.add('hidden'));
                 sentenceDisplay.innerHTML = '';
                 currentSentenceTokens = [];
                 selectedSentenceIndexDisplay.textContent = ''; 
@@ -554,7 +553,7 @@
             const ann = getCurrentSentenceAnnotation();
             if (!ann) {
                 [annotationMode1Div, annotationMode2Div, verbalUnitTokenGroupingArea, 
-                 annotationMode3Div, annotationMode4Div, downloadAreaDiv].forEach(el => el.classList.add('hidden'));
+                 annotationMode3Div, annotationMode4Div].forEach(el => el.classList.add('hidden'));
                 mode1CompletionStatus.textContent = '';
                 return;
             }
@@ -583,7 +582,7 @@
                 initializeMode2UI();
             } else {
                 [annotationMode2Div, verbalUnitTokenGroupingArea, 
-                 annotationMode3Div, annotationMode4Div, downloadAreaDiv].forEach(el => el.classList.add('hidden'));
+                 annotationMode3Div, annotationMode4Div].forEach(el => el.classList.add('hidden'));
                  verbalUnitTokenGroupingDisplay.innerHTML = ''; 
             }
             checkAndEnableMode4(); 
@@ -725,19 +724,17 @@
             if (!ann || !currentSentenceTokens || currentSentenceTokens.length === 0) return;
 
             let currentLineDiv = null;
-            let previousTokenVU_forGrouping = null; // Use a different variable name to avoid conflict
+            let previousTokenVU = null;
 
             const sortedTokens = [...currentSentenceTokens].sort((a, b) => a.sequence - b.sequence);
 
             for (const token of sortedTokens) {
                 if (token.type !== 'lexical') continue;
-                // Skip the connector token for this specific display
-                if (ann.connectingWordURN && token.urn === ann.connectingWordURN) continue;
 
                 const currentTokenVU = findVerbalUnitForToken(token.urn, ann.verbalUnits);
 
                 if (currentTokenVU) {
-                    if (!currentLineDiv || previousTokenVU_forGrouping !== currentTokenVU) {
+                    if (!currentLineDiv || previousTokenVU !== currentTokenVU) {
                         currentLineDiv = document.createElement('div');
                         currentLineDiv.style.paddingLeft = (currentTokenVU.depth * INDENTATION_UNIT_EM) + 'em';
                         verbalUnitTokenGroupingDisplay.appendChild(currentLineDiv);
@@ -745,10 +742,9 @@
                         currentLineDiv.appendChild(document.createTextNode(' '));
                     }
                     currentLineDiv.appendChild(document.createTextNode(token.text));
-                    previousTokenVU_forGrouping = currentTokenVU;
+                    previousTokenVU = currentTokenVU;
                 } else {
-                    // If a token is not in any VU (and not the connector), it resets the context
-                    previousTokenVU_forGrouping = null; 
+                    previousTokenVU = null; 
                     currentLineDiv = null; 
                 }
             }
@@ -822,24 +818,12 @@
         function checkAndEnableMode4() {
             const ann = getCurrentSentenceAnnotation();
             if (!ann) {
-                annotationMode4Div.classList.add('hidden'); 
-                downloadAreaDiv.classList.add('hidden'); // Also hide download if no sentence
-                return;
+                annotationMode4Div.classList.add('hidden'); return;
             }
 
             const relevantTokens = getMode4RelevantTokens(ann);
             const mode4Threshold = (ann.asyndeton === true && relevantTokens.length >=1) || relevantTokens.length > 1;
 
-            let hasAnyRelations = false;
-            if (ann.tokenRelations) {
-                for (const seq in ann.tokenRelations) {
-                    const rel = ann.tokenRelations[seq];
-                    if (rel.node1Sequence !== null || rel.node2Sequence !== null) {
-                        hasAnyRelations = true;
-                        break;
-                    }
-                }
-            }
 
             if (mode4Threshold) { 
                 annotationMode4Div.classList.remove('hidden');
@@ -848,15 +832,8 @@
                 populateTokenRelationsTable(relevantTokens, ann.tokenRelations);
                 renderMermaidGraph(relevantTokens, ann.tokenRelations);
                 mode4Status.textContent = "";
-                // Show download only if mode 4 is active AND there are relations
-                if (hasAnyRelations) {
-                    downloadAreaDiv.classList.remove('hidden');
-                } else {
-                    downloadAreaDiv.classList.add('hidden');
-                }
             } else {
                 annotationMode4Div.classList.add('hidden');
-                downloadAreaDiv.classList.add('hidden');
                 mode4Status.textContent = "Mode 4 requires at least 2 tokens or an active asyndeton node.";
                 mermaidDiv.innerHTML = ""; 
             }
@@ -892,10 +869,9 @@
                         if (val === null) { 
                             if (key === 'node1Sequence') relData.node1Rel = null;
                             if (key === 'node2Sequence') relData.node2Rel = null;
-                            // No need to repopulate table for clearing, just re-render graph
+                            populateTokenRelationsTable(getMode4RelevantTokens(getCurrentSentenceAnnotation()), globalRelations); 
                         }
                         renderMermaidGraph(getMode4RelevantTokens(getCurrentSentenceAnnotation()), globalRelations);
-                        checkAndEnableMode4(); // Re-check download visibility
                     };
                     return input;
                 };
@@ -918,7 +894,6 @@
                     select.onchange = (e) => {
                         relData[key] = e.target.value || null; 
                         renderMermaidGraph(getMode4RelevantTokens(getCurrentSentenceAnnotation()), globalRelations);
-                        checkAndEnableMode4(); // Re-check download visibility
                     };
                     return select;
                 };
