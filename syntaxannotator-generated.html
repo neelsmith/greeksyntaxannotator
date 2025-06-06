@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Annotate ancient Greek syntax</title>
+    <title>Greek Text Annotator</title>
     <script src="https://cdn.jsdelivr.net/gh/neelsmith/cex-lib/cex.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/neelsmith/greeklib@1.1.0/greeklib.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
@@ -126,9 +126,8 @@
             text-decoration: underline;
         }
         .direct-object-wavy-underline {
-            /*text-decoration: green double;*/ /* Standard wavy underline */
+            text-decoration: underline wavy; /* Standard wavy underline */
             /* For browsers not supporting 'wavy', this might fallback or need a more complex SVG/border-image solution */
-            text-decoration-line: underline overline;
         }
 
 
@@ -138,7 +137,7 @@
     </style>
 </head>
 <body>
-    <h1>Annotate the syntax of a citable ancient Greek text</h1>
+    <h1>Greek Text Annotator</h1>
 
     <div id="dataLoader">
         <label for="cexUrl">CEX URL:</label>
@@ -154,14 +153,14 @@
     </div>
 
     <div id="annotationMode1" class="hidden">
-        <h2>Annotation 1: Asyndeton / Connecting Word</h2>
+        <h2>Annotation Mode 1: Asyndeton / Connecting Word</h2>
         <label><input type="checkbox" id="asyndetonCheckbox"> This sentence illustrates <em>asyndeton</em>.</label>
-        <p id="mode1Instruction">If not <em>asyndeton</em>, please click the <em>connecting word</em> in the sentence below.</p>
+        <p id="mode1Instruction">If not <em>asyndeton</em>, please click the <em>connecting word</em> in the sentence above.</p>
         <p id="mode1CompletionStatus" style="font-weight: bold;"></p>
     </div>
     
     <div id="annotationMode2" class="hidden">
-        <h2>Annotation 2: Verbal Units</h2>
+        <h2>Annotation Mode 2: Verbal Units</h2>
         <button id="addVerbalUnitBtn">Add New Verbal Unit</button>
         <div id="newVerbalUnitForm" class="hidden">
             <h3>Add New Verbal Unit</h3>
@@ -190,7 +189,7 @@
     </div>
 
     <div id="annotationMode3" class="hidden">
-        <h2>Annotation 3: Assign Tokens to Verbal Unit</h2>
+        <h2>Annotation Mode 3: Assign Tokens to Verbal Unit</h2>
         <label for="verbalUnitSelectForAssignment">Select Verbal Unit to Assign Tokens:</label>
         <select id="verbalUnitSelectForAssignment"></select>
         <p>Click on lexical tokens in the sentence display above to assign/unassign them from the selected verbal unit.</p>
@@ -198,7 +197,7 @@
     </div>
 
     <div id="annotationMode4" class="hidden">
-        <h2 id="mode4Header">Annotation 4: Token Relations</h2>
+        <h2 id="mode4Header">Annotation Mode 4: Token Relations</h2>
         <div id="mermaidGraphContainer">
             <div id="mermaidDiv" class="mermaid">
                 <!-- Mermaid graph will be rendered here -->
@@ -592,11 +591,11 @@
 
             if (ann.asyndeton === true) {
                 mode1Instruction.classList.add('hidden');
-                mode1CompletionStatus.textContent = "Initial annotation (asyndeton) complete.";
+                mode1CompletionStatus.textContent = "Mode 1 (Asyndeton) complete.";
                 ensureTokenRelationEntry(ann, ASYNDETON_NODE_ID, ASYNDETON_NODE_TEXT, ASYNDETON_NODE_URN, "internal"); 
             } else if (ann.asyndeton === false && ann.connectingWordURN) {
                 mode1Instruction.classList.add('hidden');
-                mode1CompletionStatus.textContent = "Initial annotation (connecting word) complete.";
+                mode1CompletionStatus.textContent = "Mode 1 (Connecting Word) complete.";
                 const cwToken = currentSentenceTokens.find(t => t.urn === ann.connectingWordURN && t.type === 'lexical');
                 if(cwToken) ensureTokenRelationEntry(ann, cwToken.sequence, cwToken.text, cwToken.urn, cwToken.type);
 
@@ -604,7 +603,7 @@
                 asyndetonCheckbox.checked = false; 
                 ann.asyndeton = false; 
                 mode1Instruction.classList.remove('hidden');
-                mode1CompletionStatus.textContent = "Initial annotation pending: identify connecting word or check asyndeton.";
+                mode1CompletionStatus.textContent = "Mode 1 pending: Complete selection or check asyndeton.";
             }
 
             if (mode1Completed) {
@@ -886,7 +885,7 @@
 
             if (mode4Threshold) { 
                 annotationMode4Div.classList.remove('hidden');
-                mode4Header.textContent = `Annotation 4: Define Syntactic Relations Among Tokens`;
+                mode4Header.textContent = `Annotation Mode 4: Token Relations (Sentence Global)`;
                 
                 populateTokenRelationsTable(relevantTokens, ann.tokenRelations);
                 renderMermaidGraph(relevantTokens, ann.tokenRelations);

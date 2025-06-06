@@ -14,6 +14,16 @@
 
 It uses the same model of Greek syntax described in [this Julia package](https://neelsmith.github.io/GreekSyntax), and serializes annotatoins to the same file format documented there.
 
+
+## Status
+
+Version 1.0 is an initial release. Its main features are:
+
+- load a citable corpus from CEX source
+- annotate syntax as summarized above
+- save the results to a structured plain-text file
+
+
 ## Screen shot
 
 ![Screen shot](./annotator-1.0.png)
