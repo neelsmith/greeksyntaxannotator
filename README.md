@@ -1,23 +1,25 @@
-# `greeksyntaxannotator`
+# Citable annotation of Greek syntax
 
 > *A vibe-coded single-page web app for annotating the syntax of ancient Greek.*
 
-> Implementing [this model of Greek syntax](https://neelsmith.github.io/GreekSyntax)
 
-> *README to be updated ASAP*
+`syntaxannotator.html` is an app for annotating the syntactic structure of a citable text in ancient Greek. When you load a text corpus, it is tokenized and segmented into sentences you can annotate in four steps:
 
+1. identify connecting words (particles or conjunctions) relating this sentence to its context.
+2. identify subject-verb expressions ("verbal units"), including participles and subject-verb expressions with infinitives
+3. assign tokens to verbal units
+4. define syntactic relations among tokens
+
+
+
+It uses the same model of Greek syntax described in [this Julia package](https://neelsmith.github.io/GreekSyntax), and serializes annotatoins to the same file format documented there.
 
 ## Screen shot
 
-![Screen shot](./annotator.png)
+![Screen shot](./annotator-1.0.png)
 
 
-## Summary
 
-
-**Contents**:
-
-- `syntaxannotator.html`: current draft of web app.
 
 ## Caveats
 
