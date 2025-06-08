@@ -406,6 +406,8 @@
             annotationMode1Div.classList.remove('hidden');
             asyndetonCheckbox.checked = currentAnn.asyndeton === true;
 
+            // Pre-ensure token relation entries for connecting word or asyndeton if they exist
+            // This is also handled/updated in updateMode1StateAndProceed and getMode4RelevantTokens
             if (currentAnn.connectingWordURN) {
                 const cwToken = currentSentenceTokens.find(t => t.urn === currentAnn.connectingWordURN && t.type === 'lexical');
                 if (cwToken) {
@@ -480,17 +482,29 @@
             ann.asyndeton = asyndetonCheckbox.checked;
   
             if (ann.asyndeton) {
-                ann.connectingWordURN = null; 
+                ann.connectingWordURN = null; // Clear connecting word if asyndeton is checked
                 ensureTokenRelationEntry(ann, ASYNDETON_NODE_ID, ASYNDETON_NODE_TEXT, ASYNDETON_NODE_URN, "internal");
-            } 
-            displaySentenceTokens(); 
+            } else { // Asyndeton unchecked
+                // If it *was* asyndeton, we might need to remove the asyndeton node from relations.
+                // However, user might uncheck to pick a connecting word.
+                // We'll let `updateMode1StateAndProceed` and `getMode4RelevantTokens` handle
+                // which nodes are active. If an asyndeton node has relations, it might persist in table if not actively removed.
+                // For now, if asyndeton is unchecked, we don't automatically delete the ASYNDETON_NODE_ID entry,
+                // as it might still have relations the user wants to keep temporarily.
+                // getMode4RelevantTokens will only include it if ann.asyndeton is still true.
+            }
+            displaySentenceTokens(); // Re-render to remove/add highlight if CW was affected
             updateMode1StateAndProceed();
+            // checkAndShowVerbalUnitTokenGrouping(); // This is called by updateMode1StateAndProceed
         }
   
         function ensureTokenRelationEntry(ann, tokenSequence, tokenText, tokenUrn, tokenType, isImplied = false) {
             if (!ann || !ann.tokenRelations) {
+                // If ann is null or tokenRelations doesn't exist, we can't proceed.
+                // This can happen if getCurrentSentenceAnnotation() itself returns null earlier.
+                // However, most callers of ensureTokenRelationEntry already get 'ann' from there.
                 if (ann && !ann.tokenRelations) ann.tokenRelations = {};
-                else return; 
+                else return; // Cannot proceed if ann is null
             }
 
             if (!ann.tokenRelations[tokenSequence]) {
@@ -503,10 +517,11 @@
                     isImplied: isImplied
                 };
             } else {
+                // Optionally update if text/urn/type could change for an existing sequence ID (rare for actual tokens)
                 ann.tokenRelations[tokenSequence].tokenText = tokenText;
                 ann.tokenRelations[tokenSequence].originalUrn = tokenUrn;
                 ann.tokenRelations[tokenSequence].originalType = tokenType;
-                if(isImplied) ann.tokenRelations[tokenSequence].isImplied = true;
+                if(isImplied) ann.tokenRelations[tokenSequence].isImplied = true; // Ensure flag is set if called for implied
             }
         }
   
@@ -517,15 +532,19 @@
             const clickedTokenObject = currentSentenceTokens.find(t => t.urn === urn && t.type === 'lexical');
             if (!clickedTokenObject) return;
   
+            // Check if Mode 1 (Asyndeton/Connecting Word) is active and pending
             let mode1Pending = (ann.asyndeton === null || ann.asyndeton === false) && !ann.connectingWordURN;
+            // Only consider mode1Pending if annotationMode1Div is actually visible and waiting for this input
             if (annotationMode1Div.classList.contains('hidden') || asyndetonCheckbox.checked) {
                 mode1Pending = false;
             }
   
             if (mode1Pending) {
+                // If there was a previous connecting word, remove its relation entry if it's not used elsewhere.
+                // For simplicity, we just set the new one. Old one will be filtered out by getMode4RelevantTokens if no longer relevant.
                 ann.connectingWordURN = urn;
-                ann.asyndeton = false; 
-                asyndetonCheckbox.checked = false; 
+                ann.asyndeton = false; // Explicitly set asyndeton to false
+                asyndetonCheckbox.checked = false; // Uncheck the box
 
                 ensureTokenRelationEntry(ann, sequence, clickedTokenObject.text, clickedTokenObject.urn, clickedTokenObject.type);
                 displaySentenceTokens();
@@ -533,9 +552,11 @@
                 return;
             }
   
+            // Handle token assignment to verbal units (Mode 3)
             if (!annotationMode3Div.classList.contains('hidden') && currentSelectedVerbalUnitIndex !== -1 && currentSelectedVerbalUnitIndex < ann.verbalUnits.length) {
                 const currentVU = ann.verbalUnits[currentSelectedVerbalUnitIndex];
                 
+                // Remove token from any OTHER verbal unit first
                 for (let i = 0; i < ann.verbalUnits.length; i++) {
                     if (i === currentSelectedVerbalUnitIndex) continue;
                     const otherVU = ann.verbalUnits[i];
@@ -545,16 +566,18 @@
                     }
                 }
   
+                // Add/remove from current verbal unit
                 const tokenIndexInCurrentVU = currentVU.assignedTokenURNs.indexOf(urn);
-                if (tokenIndexInCurrentVU > -1) { 
+                if (tokenIndexInCurrentVU > -1) { // Token is in current VU, so remove it
                     currentVU.assignedTokenURNs.splice(tokenIndexInCurrentVU, 1);
-                } else { 
+                } else { // Token is not in current VU, so add it
                     currentVU.assignedTokenURNs.push(urn);
+                    // Ensure it has a relation entry if it's now relevant for Mode 4
                     ensureTokenRelationEntry(ann, sequence, clickedTokenObject.text, clickedTokenObject.urn, clickedTokenObject.type);
                 }
                 renderVerbalUnitsTable();
-                displaySentenceTokens(); 
-                checkAndEnableMode4(); 
+                displaySentenceTokens(); // Re-render sentence for color changes
+                checkAndEnableMode4(); // Potentially new tokens for Mode 4
                 checkAndShowVerbalUnitTokenGrouping();
             }
         }
@@ -580,8 +603,8 @@
                 mode1CompletionStatus.textContent = "Initial annotation (connecting word) complete.";
                 const cwToken = currentSentenceTokens.find(t => t.urn === ann.connectingWordURN && t.type === 'lexical');
                 if(cwToken) ensureTokenRelationEntry(ann, cwToken.sequence, cwToken.text, cwToken.urn, cwToken.type);
-            } else { 
-                ann.asyndeton = false; 
+            } else { // Not yet complete or asyndeton explicitly false but no CW chosen
+                ann.asyndeton = false; // Default to not asyndeton if state is ambiguous
                 asyndetonCheckbox.checked = false;
                 mode1Instruction.classList.remove('hidden');
                 mode1CompletionStatus.textContent = "Initial annotation pending: identify connecting word or check asyndeton.";
@@ -594,8 +617,8 @@
                  annotationMode3Div, annotationMode4Div, downloadAreaDiv].forEach(el => el.classList.add('hidden'));
                  verbalUnitTokenGroupingDisplay.innerHTML = '';
             }
-            checkAndEnableMode4(); 
-            checkAndShowVerbalUnitTokenGrouping(); 
+            checkAndEnableMode4(); // Update Mode 4 based on Mode 1 completion
+            checkAndShowVerbalUnitTokenGrouping(); // Update grouping display
         }
   
         function initializeMode2UI() {
@@ -639,7 +662,7 @@
   
             if (isNaN(depth) || depth < 0) { alert("Depth must be a non-negative integer."); return; }
             ann.verbalUnits.push({
-                id: Date.now(), 
+                id: Date.now(), // Simple unique ID for the VU
                 syntacticType,
                 semanticType,
                 depth,
@@ -647,7 +670,9 @@
                 assignedTokenURNs: []
             });
             renderVerbalUnitsTable();
-            checkAndEnableMode3(); 
+            checkAndEnableMode3(); // Mode 3 might become available
+            // No direct impact on Mode 4 unless tokens get assigned later.
+            // checkAndShowVerbalUnitTokenGrouping is called by checkAndEnableMode3
   
             newVerbalUnitForm.classList.add('hidden');
             addVerbalUnitBtn.classList.remove('hidden');
@@ -657,18 +682,21 @@
             const ann = getCurrentSentenceAnnotation();
             if (!ann || !ann.verbalUnits || index < 0 || index >= ann.verbalUnits.length) return;
             
-            ann.verbalUnits.splice(index, 1);
+            const deletedVU = ann.verbalUnits.splice(index, 1)[0];
+            // Tokens assigned to this VU are now unassigned.
+            // Their entries in tokenRelations persist if they have relations.
+            // getMode4RelevantTokens will re-evaluate them.
 
             if (currentSelectedVerbalUnitIndex === index) {
-                currentSelectedVerbalUnitIndex = -1; 
+                currentSelectedVerbalUnitIndex = -1; // Reset if the deleted VU was selected
             } else if (currentSelectedVerbalUnitIndex > index) {
-                currentSelectedVerbalUnitIndex--; 
+                currentSelectedVerbalUnitIndex--; // Adjust index
             }
   
             renderVerbalUnitsTable();
-            checkAndEnableMode3(); 
-            displaySentenceTokens(); 
-            checkAndEnableMode4(); 
+            checkAndEnableMode3(); // Update Mode 3 select and status
+            displaySentenceTokens(); // Re-render sentence to remove color from unassigned tokens
+            checkAndEnableMode4(); // Re-evaluate Mode 4 relevant tokens
             checkAndShowVerbalUnitTokenGrouping();
         }
   
@@ -679,7 +707,7 @@
                 populateVerbalUnitSelectForAssignment();
                 mode3Status.textContent = "Select a verbal unit to assign tokens.";
                 if (currentSelectedVerbalUnitIndex === -1 || currentSelectedVerbalUnitIndex >= ann.verbalUnits.length) {
-                     currentSelectedVerbalUnitIndex = 0; 
+                     currentSelectedVerbalUnitIndex = 0; // Default to first VU if selection is invalid
                 }
                 verbalUnitSelectForAssignment.value = currentSelectedVerbalUnitIndex;
             } else {
@@ -687,7 +715,8 @@
                 mode3Status.textContent = "";
                 currentSelectedVerbalUnitIndex = -1;
             }
-            checkAndShowVerbalUnitTokenGrouping(); 
+            // displaySentenceTokens(); // Often called by caller or subsequent checkAndEnableMode4
+            checkAndShowVerbalUnitTokenGrouping(); // Update this display based on VU availability
         }
   
         function populateVerbalUnitSelectForAssignment() {
@@ -699,18 +728,20 @@
                     verbalUnitSelectForAssignment.appendChild(new Option(optionText, index));
                 });
             }
+            // Restore selection or default
             if (currentSelectedVerbalUnitIndex !== -1 && ann && currentSelectedVerbalUnitIndex < ann.verbalUnits.length) {
                 verbalUnitSelectForAssignment.value = currentSelectedVerbalUnitIndex;
             } else if (ann && ann.verbalUnits.length > 0) {
-                 verbalUnitSelectForAssignment.value = "0"; 
+                 verbalUnitSelectForAssignment.value = "0"; // Default to first VU
                  currentSelectedVerbalUnitIndex = 0;
             } else {
-                 currentSelectedVerbalUnitIndex = -1; 
+                 currentSelectedVerbalUnitIndex = -1; // No VUs, so no selection
             }
         }
   
         function handleVerbalUnitSelectionForAssignment() {
             currentSelectedVerbalUnitIndex = parseInt(verbalUnitSelectForAssignment.value, 10);
+            // No immediate re-render needed, selection is used when tokens are clicked.
         }
   
         function findVerbalUnitForToken(tokenURN, verbalUnits) {
@@ -729,10 +760,12 @@
             let currentLineDiv = null;
             let previousTokenVU_forGrouping = null;
   
+            // Filter to lexical tokens and sort by sequence for coherent display
             const lexicalTokens = currentSentenceTokens.filter(t => t.type === 'lexical');
             const sortedTokens = [...lexicalTokens].sort((a, b) => a.sequence - b.sequence);
   
             for (const token of sortedTokens) {
+                // Skip connecting word for this display
                 if (ann.connectingWordURN && token.urn === ann.connectingWordURN) continue;
   
                 const currentTokenVU = findVerbalUnitForToken(token.urn, ann.verbalUnits);
@@ -744,7 +777,7 @@
                         currentLineDiv.classList.add(`indent-depth-${currentTokenVU.depth}`);
                         verbalUnitTokenGroupingDisplay.appendChild(currentLineDiv);
                     } else {
-                        currentLineDiv.appendChild(document.createTextNode(' ')); 
+                        currentLineDiv.appendChild(document.createTextNode(' ')); // Space between tokens in same VU line
                     }
                     
                     const tokenTextSpan = document.createElement('span');
@@ -762,9 +795,9 @@
                     }
                     currentLineDiv.appendChild(tokenTextSpan);
                     previousTokenVU_forGrouping = currentTokenVU;
-                } else { 
-                    previousTokenVU_forGrouping = null; 
-                    currentLineDiv = null; 
+                } else { // Token not in any VU, or different VU means new line handled above
+                    previousTokenVU_forGrouping = null; // Reset for next token that might start a new VU line
+                    currentLineDiv = null; // Ensure new div for next VU line
                 }
             }
         }
@@ -797,6 +830,7 @@
             if (!ann) return;
 
             const impliedId = nextImpliedTokenId--;
+            // Make URN unique, including sentence context if annotations are ever collated
             const impliedUrn = `internal:implied_token_${Math.abs(impliedId)}_${currentSentenceURN || 'unknown_sentence'}`;
 
             if (!ann.tokenRelations) {
@@ -806,12 +840,12 @@
             ann.tokenRelations[impliedId] = {
                 tokenText: "implied",
                 originalUrn: impliedUrn,
-                originalType: "implied", 
+                originalType: "implied", // Special type for implied tokens
                 node1Sequence: null, node1Rel: null,
                 node2Sequence: null, node2Rel: null,
-                isImplied: true 
+                isImplied: true // Flag to identify this as an implied token
             };
-            checkAndEnableMode4(); 
+            checkAndEnableMode4(); // Refresh Mode 4 table and graph
         }
 
         function handleDeleteImpliedToken(impliedId) {
@@ -823,6 +857,7 @@
 
             delete ann.tokenRelations[impliedId];
 
+            // Clean up relations pointing to this deleted implied token from other tokens
             for (const seqKey in ann.tokenRelations) {
                 const rel = ann.tokenRelations[seqKey];
                 if (rel.node1Sequence === impliedId) {
@@ -834,7 +869,8 @@
                     rel.node2Rel = null;
                 }
             }
-            checkAndEnableMode4(); 
+            checkAndEnableMode4(); // Refresh table and graph
+            // checkAndShowVerbalUnitTokenGrouping(); // Not strictly necessary as implied tokens aren't there
         }
   
         function getMode4RelevantTokens(ann) {
@@ -842,8 +878,9 @@
             const includedSequences = new Set();
 
             if (!ann) return relevantTokensData;
-            if (!ann.tokenRelations) ann.tokenRelations = {}; 
+            if (!ann.tokenRelations) ann.tokenRelations = {}; // Ensure it exists
 
+            // 1. Asyndeton node (if applicable)
             if (ann.asyndeton === true) {
                 ensureTokenRelationEntry(ann, ASYNDETON_NODE_ID, ASYNDETON_NODE_TEXT, ASYNDETON_NODE_URN, "internal");
                 const entry = ann.tokenRelations[ASYNDETON_NODE_ID];
@@ -851,6 +888,7 @@
                 includedSequences.add(ASYNDETON_NODE_ID);
             }
 
+            // 2. Connecting word (if applicable)
             if (ann.connectingWordURN) {
                 const cwToken = currentSentenceTokens.find(t => t.urn === ann.connectingWordURN && t.type === 'lexical');
                 if (cwToken && !includedSequences.has(cwToken.sequence)) {
@@ -861,6 +899,7 @@
                 }
             }
 
+            // 3. Tokens assigned to Verbal Units
             if (ann.verbalUnits) {
                 ann.verbalUnits.forEach(vu => {
                     vu.assignedTokenURNs.forEach(urn => {
@@ -875,18 +914,21 @@
                 });
             }
             
+            // 4. Other tokens already in tokenRelations (e.g., implied tokens or tokens with existing relations)
             for (const seqKey in ann.tokenRelations) {
                 const seq = parseInt(seqKey, 10);
                 if (!includedSequences.has(seq)) {
                     const relationEntry = ann.tokenRelations[seqKey];
+                    // Add if it's an implied token OR if it's an actual token that has relations but isn't CW/VU-assigned
+                    // (This ensures tokens with relations persist in the table even if their VU is deleted or CW changes)
                      relevantTokensData.push({
-                        sequence: seq, 
+                        sequence: seq, // This is the key, could be negative for implied
                         text: relationEntry.tokenText,
                         urn: relationEntry.originalUrn,
                         type: relationEntry.originalType,
-                        isImplied: relationEntry.isImplied || false 
+                        isImplied: relationEntry.isImplied || false // Pass this flag
                     });
-                    includedSequences.add(seq); 
+                    includedSequences.add(seq); // Add to prevent re-adding if it was, for example, an old CW
                 }
             }
             
@@ -903,9 +945,9 @@
                 if (aIsImplied && !bIsImplied) return -1;
                 if (!aIsImplied && bIsImplied) return 1;
                 if (aIsImplied && bIsImplied) {
-                    return Math.abs(aSeq) - Math.abs(bSeq); 
+                    return Math.abs(aSeq) - Math.abs(bSeq); // Sorts -1 before -2, then -3
                 }
-                return aSeq - bSeq; 
+                return aSeq - bSeq; // Sort positive sequence numbers numerically
             });
             return relevantTokensData;
         }
@@ -919,14 +961,16 @@
             }
   
             const relevantTokens = getMode4RelevantTokens(ann);
+            // Mode 4 is available if there's an asyndeton node, or more than one token (actual or implied)
             const mode4ThresholdMet = (ann.asyndeton === true && relevantTokens.some(t => t.sequence === ASYNDETON_NODE_ID)) || 
-                                   relevantTokens.filter(t => t.sequence !== ASYNDETON_NODE_ID).length > 0 && relevantTokens.length >1 || 
-                                   (relevantTokens.some(t => t.sequence === ASYNDETON_NODE_ID) && relevantTokens.filter(t=> t.sequence !== ASYNDETON_NODE_ID).length > 0); 
+                                   relevantTokens.filter(t => t.sequence !== ASYNDETON_NODE_ID).length > 0 && relevantTokens.length >1 || // More than one non-asyndeton token
+                                   (relevantTokens.some(t => t.sequence === ASYNDETON_NODE_ID) && relevantTokens.filter(t=> t.sequence !== ASYNDETON_NODE_ID).length > 0); // Asyndeton + at least one other token
 
             let hasAnyRelationsDefined = false;
             if (ann.tokenRelations) {
                 for (const seq in ann.tokenRelations) {
                     const rel = ann.tokenRelations[seq];
+                    // Only consider relations of tokens currently relevant for the table
                     if (relevantTokens.some(rt => rt.sequence === parseInt(seq,10))) {
                         if (rel.node1Sequence !== null || rel.node2Sequence !== null) {
                             hasAnyRelationsDefined = true;
@@ -943,7 +987,7 @@
                 renderMermaidGraph(relevantTokens, ann.tokenRelations);
                 mode4Status.textContent = relevantTokens.length > 0 ? "" : "Add tokens or define asyndeton to begin.";
                 
-                if (hasAnyRelationsDefined) { 
+                if (hasAnyRelationsDefined) { // Enable download if relations are actually defined
                     downloadAreaDiv.classList.remove('hidden');
                 } else {
                     downloadAreaDiv.classList.add('hidden');
@@ -952,7 +996,7 @@
                 annotationMode4Div.classList.add('hidden');
                 downloadAreaDiv.classList.add('hidden');
                 mode4Status.textContent = "Mode 4 requires asyndeton or multiple tokens with defined roles (e.g., connecting word, assigned to verbal units, or implied).";
-                mermaidDiv.innerHTML = ""; 
+                mermaidDiv.innerHTML = ""; // Clear graph if mode not enabled
             }
         }
   
@@ -962,10 +1006,12 @@
   
             relevantTokens.forEach(token => {
                 const refSeq = token.sequence;
+                // globalRelations[refSeq] should exist due to getMode4RelevantTokens calling ensureTokenRelationEntry
                 let relationData = globalRelations[refSeq];
-                if (!relationData) { 
+                if (!relationData) { // Fallback, should ideally not be needed often
                      ensureTokenRelationEntry(getCurrentSentenceAnnotation(), refSeq, token.text, token.urn, token.type, token.isImplied);
                      relationData = globalRelations[refSeq]; 
+                     // If still not, something is wrong or ann is null. For safety:
                      if (!relationData) relationData = { node1Sequence: null, node1Rel: null, node2Sequence: null, node2Rel: null};
                 }
   
@@ -980,7 +1026,7 @@
                     input.onchange = (e) => {
                         const valStr = e.target.value.trim();
                         let val = null;
-                        if (valStr !== '') { 
+                        if (valStr !== '') { // Allow empty input for null
                             val = parseInt(valStr, 10);
                              if (isNaN(val)) {
                                 alert(`Invalid Node ID: "${valStr}" is not a number.`);
@@ -995,9 +1041,10 @@
                             return;
                         }
                         relDataOwner[key] = val;
+                        // Important: Get fresh relevant tokens for graph as relations might make new tokens relevant implicitly (though less likely now)
                         renderMermaidGraph(getMode4RelevantTokens(getCurrentSentenceAnnotation()), globalRelations);
-                        checkAndEnableMode4(); 
-                        checkAndShowVerbalUnitTokenGrouping(); 
+                        checkAndEnableMode4(); // Re-check download button state
+                        checkAndShowVerbalUnitTokenGrouping(); // Update formatting based on new relations
                     };
                     return input;
                 };
@@ -1021,6 +1068,7 @@
                 row.insertCell().appendChild(createNumberInput(relationData.node2Sequence, 'node2Sequence', relationData));
                 row.insertCell().appendChild(createRelationSelect(relationData.node2Rel, 'node2Rel', relationData));
 
+                // Add a delete button for implied tokens
                 const actionCell = row.insertCell();
                 if (token.isImplied) {
                     const deleteButton = document.createElement('button');
@@ -1032,62 +1080,33 @@
                 }
             });
         }
-
         async function renderMermaidGraph(relevantTokens, globalRelations) {
             let mermaidString = 'graph BT\n'; // Bottom-to-Top graph direction
             const edges = [];
-            const tokenTextMap = {}; 
-            const nodesInvolvedInRelations = new Set();
+            const tokenTextMap = {}; // Maps sequence ID to text for labels
+            const declaredNodeSequences = new Set();
 
-            // Step 1: Identify all nodes participating in any valid relation
-            for (const refSeqStr in globalRelations) {
-                const refSeq = parseInt(refSeqStr, 10);
-                const relation = globalRelations[refSeqStr];
-
-                if (!relevantTokens.some(t => t.sequence === refSeq)) {
-                    continue;
-                }
-
-                if (relation.node1Sequence !== null && relation.node1Rel) {
-                    if (relevantTokens.some(t => t.sequence === relation.node1Sequence)) {
-                        nodesInvolvedInRelations.add(refSeq);
-                        nodesInvolvedInRelations.add(relation.node1Sequence);
-                    }
-                }
-                if (relation.node2Sequence !== null && relation.node2Rel) {
-                    if (relevantTokens.some(t => t.sequence === relation.node2Sequence)) {
-                        nodesInvolvedInRelations.add(refSeq);
-                        nodesInvolvedInRelations.add(relation.node2Sequence);
-                    }
-                }
-            }
-
-            if (nodesInvolvedInRelations.size === 0) {
-                mermaidDiv.innerHTML = "No relations defined that connect tokens in the current set.";
-                return;
-            }
-
-            // Step 2: Declare only nodes that are involved in relations
+            // First, declare all relevant tokens as nodes so they appear even if they have no relations yet.
+            // This also populates tokenTextMap.
             relevantTokens.forEach(t => {
-                if (nodesInvolvedInRelations.has(t.sequence)) {
-                    const labelText = escapeMermaidLabel(t.text); 
-                    mermaidString += `    ${t.sequence}["${labelText}"]\n`;
-                    tokenTextMap[t.sequence] = t.text;
-                }
+                const labelText = `${escapeMermaidLabel(t.text)} (${t.sequence})`;
+                mermaidString += `    ${t.sequence}["${labelText}"]\n`;
+                tokenTextMap[t.sequence] = t.text; // Store original text for edge cases if needed
+                declaredNodeSequences.add(t.sequence);
             });
             
-            // Step 3: Generate edges only between involved and declared nodes
             for (const refSeqStr in globalRelations) {
                 const refSeq = parseInt(refSeqStr, 10);
-                
-                if (!nodesInvolvedInRelations.has(refSeq)) {
-                    continue; 
-                }
+                // Only process relations for nodes that are currently considered relevant and declared
+                if (!declaredNodeSequences.has(refSeq)) continue; 
 
-                const relation = globalRelations[refSeqStr];
+                const relation = globalRelations[refSeq];
+                // const refTokenText = tokenTextMap[refSeq]; // Node already declared with this text
 
                 const addEdge = (targetSeq, relText) => {
-                    if (targetSeq !== null && relText && nodesInvolvedInRelations.has(targetSeq)) {
+                    if (targetSeq !== null && relText && declaredNodeSequences.has(targetSeq)) {
+                        // const targetTokenText = tokenTextMap[targetSeq]; // Node already declared
+                        // Nodes are referenced by their sequence ID. Labels are handled in node declaration.
                         edges.push(`    ${refSeq} -- "${escapeMermaidLabel(relText)}" --> ${targetSeq}`);
                     }
                 };
@@ -1095,20 +1114,19 @@
                 addEdge(relation.node2Sequence, relation.node2Rel);
             }
             
-            if (edges.length === 0 && nodesInvolvedInRelations.size > 0) {
-                 // Nodes were involved, but no edges could be formed. The graph will show nodes declared in Step 2.
-            } else if (edges.length === 0 && nodesInvolvedInRelations.size === 0) {
-                mermaidDiv.innerHTML = "No relations defined that connect tokens in the current set."; // Should be caught earlier
+            if (edges.length > 0) {
+                mermaidString += edges.join('\n');
+            } else if (relevantTokens.length === 0) { // No tokens at all
+                mermaidDiv.innerHTML = "No tokens or asyndeton identified for relation definition.";
                 return;
             }
+            // If relevantTokens exist but no edges, mermaidString contains only node declarations, which is fine.
 
-            mermaidString += edges.join('\n');
-            
             try {
-                mermaidDiv.innerHTML = ''; 
+                mermaidDiv.innerHTML = ''; // Clear previous graph before rendering new one
                 const { svg, bindFunctions } = await mermaid.render('graphSvg-' + Date.now(), mermaidString);
                 mermaidDiv.innerHTML = svg;
-                if (bindFunctions) bindFunctions(mermaidDiv);
+                if (bindFunctions) bindFunctions(mermaidDiv); // Attach event handlers if any
             } catch (e) {
                 console.error("Mermaid rendering error:", e, "\nGraph string:\n", mermaidString);
                 mermaidDiv.innerHTML = `Error rendering graph: ${e.message}.<br><pre>${mermaidString.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`;
@@ -1117,34 +1135,39 @@
   
         function escapeMermaidLabel(text) {
             if (typeof text !== 'string') text = String(text);
+            // More robust escaping for Mermaid labels
             return text
-                .replace(/"/g, '#quot;') 
-                .replace(/;/g, '#59;')   
-                .replace(/\(/g, '#40;')  
-                .replace(/\)/g, '#41;')  
-                .replace(/</g, '&lt;')   
-                .replace(/>/g, '&gt;');  
+                .replace(/"/g, '#quot;') // Escape double quotes
+                .replace(/;/g, '#59;')   // Escape semicolons
+                .replace(/\(/g, '#40;')  // Escape open parenthesis
+                .replace(/\)/g, '#41;')  // Escape close parenthesis
+                .replace(/</g, '&lt;')   // HTML escape for less-than
+                .replace(/>/g, '&gt;');  // HTML escape for greater-than
         }
   
         function handleDownloadAnnotations() {
             let output = "";
-            const processedSentenceURNs = new Set(); 
+            const processedSentenceURNs = new Set(); // To avoid duplicate sentence entries if no specific annotations
   
+            // Sentences block
             const sentencesHeader = "sentence|sequence|connector";
             const sentencesData = [];
             for (const sentenceUrn in annotations) {
                 if (annotations.hasOwnProperty(sentenceUrn)) {
                     const ann = annotations[sentenceUrn];
-                    const sentenceMenuIndex = sentenceUrnMap[sentenceUrn] || ''; 
+                    const sentenceMenuIndex = sentenceUrnMap[sentenceUrn] || ''; // Get menu index
+                    // Connector URN is connectingWordURN if asyndeton is false, otherwise empty.
+                    // ASYNDETON_NODE_URN is for the asyndeton concept itself, not a "connector".
                     const connectorUrn = (ann.asyndeton === false && ann.connectingWordURN) ? ann.connectingWordURN : 
-                                         (ann.asyndeton === true ? ASYNDETON_NODE_URN : ''); 
+                                         (ann.asyndeton === true ? ASYNDETON_NODE_URN : ''); // Represent asyndeton with its URN if desired, or empty
                     sentencesData.push(`${sentenceUrn}|${sentenceMenuIndex}|${connectorUrn}`);
                     processedSentenceURNs.add(sentenceUrn);
                 }
             }
+            // Add sentences from dropdown that might not have annotations yet
             Object.keys(sentenceUrnMap).forEach(urn => {
                 if (!processedSentenceURNs.has(urn)) {
-                    sentencesData.push(`${urn}|${sentenceUrnMap[urn]}|`); 
+                    sentencesData.push(`${urn}|${sentenceUrnMap[urn]}|`); // No connector yet
                 }
             });
             if (sentencesData.length > 0) {
@@ -1153,6 +1176,7 @@
                  output += sentencesData.sort((a,b) => parseInt(a.split('|')[1]) - parseInt(b.split('|')[1])).join("\n") + "\n\n";
             }
   
+            // Verbal Units block
             const verbalUnitsHeader = "vuid|syntactic_type|semantic_type|depth|sentence";
             const verbalUnitsData = [];
             for (const sentenceUrn in annotations) {
@@ -1171,17 +1195,21 @@
                 output += verbalUnitsData.join("\n") + "\n\n";
             }
   
+            // Tokens block (includes actual, asyndeton, and implied tokens with relations)
             const tokensHeader = "urn|reference|tokentype|text|verbalunit|node1|node1relation|node2|node2relation";
             const tokensData = [];
             for (const sentenceUrn in annotations) {
                 if (annotations.hasOwnProperty(sentenceUrn)) {
                     const ann = annotations[sentenceUrn];
                     if (ann.tokenRelations) {
+                        // Sort token relations by reference ID for consistent output
                         const sortedRefSeqs = Object.keys(ann.tokenRelations).sort((a, b) => parseInt(a) - parseInt(b));
 
                         for (const refSeq of sortedRefSeqs) {
+                            // if (ann.tokenRelations.hasOwnProperty(refSeq)) { // Already iterating keys
                                 const relData = ann.tokenRelations[refSeq];
                                 let assignedVuId = '';
+                                // Assign VU ID only if it's not asyndeton and not an implied token
                                 if (ann.verbalUnits && relData.originalUrn !== ASYNDETON_NODE_URN && !relData.isImplied) {
                                     for (const vu of ann.verbalUnits) {
                                         if (vu.assignedTokenURNs.includes(relData.originalUrn)) {
@@ -1193,15 +1221,16 @@
   
                                 tokensData.push([
                                     relData.originalUrn || '',         
-                                    refSeq, 
+                                    refSeq, // This is the sequence ID (token.sequence, ASYNDETON_NODE_ID, or implied ID)
                                     relData.originalType || '',        
                                     relData.tokenText || '',           
-                                    assignedVuId, 
+                                    assignedVuId, // VU ID, empty for asyndeton/implied or unassigned actual tokens
                                     relData.node1Sequence !== null ? relData.node1Sequence : '',
                                     relData.node1Rel || '',            
                                     relData.node2Sequence !== null ? relData.node2Sequence : '',
                                     relData.node2Rel || ''             
                                 ].join("|"));
+                            // }
                         }
                     }
                 }

@@ -1,8 +1,11 @@
+I have a web app that allows a user to make 4 kinds of  annotatations about the syntax of a Greek text. I want to make a modification to the fourth annotation. Here is the app:
+
+```
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Greek Text Annotator</title>
+    <title>Annotate ancient Greek syntax</title>
     <script src="https://cdn.jsdelivr.net/gh/neelsmith/cex-lib/cex.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/neelsmith/greeklib@1.1.0/greeklib.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
@@ -126,8 +129,9 @@
             text-decoration: underline;
         }
         .direct-object-wavy-underline {
-            text-decoration: underline wavy; /* Standard wavy underline */
+            /*text-decoration: green double;*/ /* Standard wavy underline */
             /* For browsers not supporting 'wavy', this might fallback or need a more complex SVG/border-image solution */
+            text-decoration-line: underline overline;
         }
 
 
@@ -137,7 +141,7 @@
     </style>
 </head>
 <body>
-    <h1>Greek Text Annotator</h1>
+    <h1>Annotate the syntax of a citable ancient Greek text</h1>
 
     <div id="dataLoader">
         <label for="cexUrl">CEX URL:</label>
@@ -153,14 +157,14 @@
     </div>
 
     <div id="annotationMode1" class="hidden">
-        <h2>Annotation Mode 1: Asyndeton / Connecting Word</h2>
+        <h2>Annotation 1: Asyndeton / Connecting Word</h2>
         <label><input type="checkbox" id="asyndetonCheckbox"> This sentence illustrates <em>asyndeton</em>.</label>
-        <p id="mode1Instruction">If not <em>asyndeton</em>, please click the <em>connecting word</em> in the sentence above.</p>
+        <p id="mode1Instruction">If not <em>asyndeton</em>, please click the <em>connecting word</em> in the sentence below.</p>
         <p id="mode1CompletionStatus" style="font-weight: bold;"></p>
     </div>
     
     <div id="annotationMode2" class="hidden">
-        <h2>Annotation Mode 2: Verbal Units</h2>
+        <h2>Annotation 2: Verbal Units</h2>
         <button id="addVerbalUnitBtn">Add New Verbal Unit</button>
         <div id="newVerbalUnitForm" class="hidden">
             <h3>Add New Verbal Unit</h3>
@@ -189,7 +193,7 @@
     </div>
 
     <div id="annotationMode3" class="hidden">
-        <h2>Annotation Mode 3: Assign Tokens to Verbal Unit</h2>
+        <h2>Annotation 3: Assign Tokens to Verbal Unit</h2>
         <label for="verbalUnitSelectForAssignment">Select Verbal Unit to Assign Tokens:</label>
         <select id="verbalUnitSelectForAssignment"></select>
         <p>Click on lexical tokens in the sentence display above to assign/unassign them from the selected verbal unit.</p>
@@ -197,7 +201,7 @@
     </div>
 
     <div id="annotationMode4" class="hidden">
-        <h2 id="mode4Header">Annotation Mode 4: Token Relations</h2>
+        <h2 id="mode4Header">Annotation 4: Token Relations</h2>
         <div id="mermaidGraphContainer">
             <div id="mermaidDiv" class="mermaid">
                 <!-- Mermaid graph will be rendered here -->
@@ -591,11 +595,11 @@
 
             if (ann.asyndeton === true) {
                 mode1Instruction.classList.add('hidden');
-                mode1CompletionStatus.textContent = "Mode 1 (Asyndeton) complete.";
+                mode1CompletionStatus.textContent = "Initial annotation (asyndeton) complete.";
                 ensureTokenRelationEntry(ann, ASYNDETON_NODE_ID, ASYNDETON_NODE_TEXT, ASYNDETON_NODE_URN, "internal"); 
             } else if (ann.asyndeton === false && ann.connectingWordURN) {
                 mode1Instruction.classList.add('hidden');
-                mode1CompletionStatus.textContent = "Mode 1 (Connecting Word) complete.";
+                mode1CompletionStatus.textContent = "Initial annotation (connecting word) complete.";
                 const cwToken = currentSentenceTokens.find(t => t.urn === ann.connectingWordURN && t.type === 'lexical');
                 if(cwToken) ensureTokenRelationEntry(ann, cwToken.sequence, cwToken.text, cwToken.urn, cwToken.type);
 
@@ -603,7 +607,7 @@
                 asyndetonCheckbox.checked = false; 
                 ann.asyndeton = false; 
                 mode1Instruction.classList.remove('hidden');
-                mode1CompletionStatus.textContent = "Mode 1 pending: Complete selection or check asyndeton.";
+                mode1CompletionStatus.textContent = "Initial annotation pending: identify connecting word or check asyndeton.";
             }
 
             if (mode1Completed) {
@@ -885,7 +889,7 @@
 
             if (mode4Threshold) { 
                 annotationMode4Div.classList.remove('hidden');
-                mode4Header.textContent = `Annotation Mode 4: Token Relations (Sentence Global)`;
+                mode4Header.textContent = `Annotation 4: Define Syntactic Relations Among Tokens`;
                 
                 populateTokenRelationsTable(relevantTokens, ann.tokenRelations);
                 renderMermaidGraph(relevantTokens, ann.tokenRelations);
@@ -1114,3 +1118,10 @@
     </script>
 </body>
 </html>
+```
+
+In the user-edited table under "Annotation 4: Define Syntactic Relations Among Tokens", I want an option for the user to add a new row for an *implied* token. The `Reference` value for the additional token should be a unique integer value. The `Token` column should have the value `implied`.  The mermaid diagram that is displayed above the user edited table should take account of the implied token, but the displays labelled "Sentence Text" and "Verbal Unit Token Grouping* should ignore any implied tokens. Could you implement this?
+
+---
+
+Excellent!  Two tweaks to the Mermaid diagram display. 1) Please don't include the parenthesiszed node reference in the node label: just the value of the `Text` column. 2) Please display only nodes that have a relation to another node: no floating singletons.
