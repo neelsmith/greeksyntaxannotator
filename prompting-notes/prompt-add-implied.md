@@ -1125,3 +1125,8 @@ In the user-edited table under "Annotation 4: Define Syntactic Relations Among T
 ---
 
 Excellent!  Two tweaks to the Mermaid diagram display. 1) Please don't include the parenthesiszed node reference in the node label: just the value of the `Text` column. 2) Please display only nodes that have a relation to another node: no floating singletons.
+
+---
+
+In editing the table "Annotation 4: Define Syntactic Relations Among Tokens", users select values for "Node 1 Relation" and "Node 2 Relation" from a menu of values. Would you please add an item `agent` to that menu?
+
