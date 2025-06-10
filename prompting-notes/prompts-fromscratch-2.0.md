@@ -166,3 +166,4 @@ Fantastic! Now let's let the user choose the name of the output file when downlo
 
 ---
 
+This is great. Could you write a very brief user's guide to using the app?
