@@ -152,3 +152,17 @@ I would like to alter the menu labelled "Graph Orientation:" where the user choo
 
 ---
 
+
+In the display of tokens in the section labelled "Verbal Unit Structure", please color the texts according to the verbal unit they belong to, as in the display of sentence tokens in the section imediately before it.
+
+---
+
+On the button labelled "Add Implied Row", please change the label to "Add Implied Token". Do not change any behavior.
+Please change both the page title and the label "Greek Text Annotator" to "Annotate ancient Greek syntax"
+
+---
+
+Fantastic! Now let's let the user choose the name of the output file when downloading annotations. Keep the same base name you're currently using, but with extension `.cex` instead of `.txt`.
+
+---
+
