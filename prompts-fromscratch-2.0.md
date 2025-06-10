@@ -120,3 +120,35 @@ Excellent. Now I'd like to *remove* the option to download the Memaid graph. (Do
 "Annotation 3: Assign Tokens to Verbal Units" immediately below the display of "Sentence Tokens" and above the section "Annotation 2: Define Verbal Units". 
 
 ---
+
+Good. Now change the heading "Annotation 3: Assign Tokens to Verbal Units" to "Assign Tokens to Verbal Units", and the heading "Annotation 2: Define Verbal Units" to "Define Verbal Units".
+
+---
+
+
+Change the label "Annotation 1: Asyndeton / Connecting Word" to "Asyndeton / Connecting Word". Change the label "Load Corpus" to "Load Corpus and Choose Sentence". Change the label "Sentence Tokens" to "Annotate Sentence".
+
+Then immediately after that, let's add a further display of the `text` property of all tokens assigned to a verbal unit, as follows: if a token belongs to the same verbal unit as the preceding token, it continues on the same line. If it belongs to a different verbal unit, it begins a new line. Line beginnings should be indented according to the depth value of the verbal unit. Level 1 verbal units should be flush left; level 2 units should be indented one level further; etc. Tokens on the same line should be separated by a single white space.
+
+---
+
+In the section "Verbal Unit Structure (Text Flow)", do not use a monospace font. Achieve the correct level of indentation using CSS. In both this section and in the display labelled "Annotate Sentence", please add text decoration to tokens based on the "Node 1 Relation" column of the table in the section "Annotation 4: Define Token Relations" as follows: any tokens that have a value of `unit verb` should have a black bounding rectangle; any tokens with value of `subject` should be underlined; any tokens with a value `direct object` or `predicate` should have both an underline and overline.
+
+---
+
+Great! Change the label "Verbal Unit Structure (Text Flow)" to "Verbal Unit Structure". Move the section labelled "Assign Tokens to Verbal Units"  immediately below the heading "Annotate Sentence" and above the display of sentence tokens. 
+
+---
+
+Now remove the heading "Assign Tokens to Verbal Units", the instructions beginning "Click on lexical tokens in the sentence display (below) to assign/unassign them. ", and the status display for that task, so that the menu to select verbal units is directly above the sentence token display.
+
+Change the heading "Annotation 4: Define Token Relations" to "Define Token Relations".
+
+---
+
+This is excellent. I would like to make 2 sections collapsible so the user can expand or hide their contents: 1) the section labelled "Verbal Unit Structure" with the hierarchically indented display and 2)  the section labelled "Syntax Graph Visualization" with the display of the mermaid graph.
+
+I would like to alter the menu labelled "Graph Orientation:" where the user chooses the direction of the mermaid graph. It should have two `option` elements: the first should have the `BT` and have text contents "Top to bottom";the second should have the value `RL` and have text contents "Left to right".
+
+---
+

@@ -12,12 +12,12 @@
 
 
 
-It uses the same model of Greek syntax described in [this Julia package](https://neelsmith.github.io/GreekSyntax), and serializes annotatoins to the same file format documented there.
+It uses the same model of Greek syntax described in [this Julia package](https://neelsmith.github.io/GreekSyntax), and serializes annotations to the  file format documented there.
 
 
 ## Status
 
-Version 1.0 is an initial release. Its main features are:
+Version 2.0 is a complete rewrite. Its main features are:
 
 - load a citable corpus from CEX source
 - annotate syntax as summarized above
