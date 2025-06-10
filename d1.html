@@ -34,7 +34,7 @@
         .delete-btn { background-color: #dc3545; }
         .delete-btn:hover { background-color: #c82333; }
         .mermaid-container { margin-top: 15px; border: 1px solid #ccc; padding: 10px; min-height: 100px; }
-        /* #tempMermaidRenderer removed as PNG download is gone */
+        #tempMermaidRenderer { display: none; } /* For PNG generation */
     </style>
 </head>
 <body>
@@ -53,35 +53,25 @@
             <select id="sentenceSelector" disabled></select>
         </div>
 
-        <!-- Mode 1: Asyndeton / Connecting Word -->
-        <div id="mode1Section" class="mode-section hidden">
-            <h3>Annotation 1: Asyndeton / Connecting Word</h3>
-            <label>
-                <input type="checkbox" id="asyndetonCheckbox"> This sentence illustrates asyndeton.
-            </label>
-            <p id="mode1Prompt">If not asyndeton, click on the connecting lexical token in the sentence above.</p>
-            <p>Status: <span id="mode1Status">Pending</span></p>
-        </div>
-
         <!-- Sentence Display -->
         <h2>2. Sentence Tokens</h2>
         <div id="sentenceTokenDisplay" class="token-display">Select a sentence to see tokens.</div>
 
-        <!-- Annotation Modes Container (for modes 3, 2, graph, 4) -->
+        <!-- Annotation Modes -->
         <div id="annotationModesContainer" class="hidden">
-            
-            <!-- Mode 3: Assign Tokens to Verbal Units (Moved Here) -->
-            <div id="mode3Section" class="mode-section hidden">
-                <h3>Annotation 3: Assign Tokens to Verbal Units</h3>
-                <label for="vuSelectorForAssignment">Select Verbal Unit to assign tokens to:</label>
-                <select id="vuSelectorForAssignment" disabled></select>
-                <p>Click on lexical tokens in the sentence display above to assign/unassign them to the selected verbal unit. (Define verbal units in Annotation 2 first)</p>
-                <p>Status: <span id="mode3Status">Pending token assignments.</span></p>
+            <!-- Mode 1: Asyndeton / Connecting Word -->
+            <div id="mode1Section" class="mode-section">
+                <h3>Mode 1: Asyndeton / Connecting Word</h3>
+                <label>
+                    <input type="checkbox" id="asyndetonCheckbox"> This sentence illustrates asyndeton.
+                </label>
+                <p id="mode1Prompt">If not asyndeton, click on the connecting lexical token in the sentence above.</p>
+                <p>Status: <span id="mode1Status">Pending</span></p>
             </div>
 
             <!-- Mode 2: Verbal Units -->
             <div id="mode2Section" class="mode-section hidden">
-                <h3>Annotation 2: Define Verbal Units</h3>
+                <h3>Mode 2: Define Verbal Units</h3>
                 <table id="verbalUnitsTable">
                     <thead>
                         <tr>
@@ -117,23 +107,18 @@
                 <p>Status: <span id="mode2Status">Pending first verbal unit.</span></p>
             </div>
 
-            <!-- Mermaid Graph Visualization -->
-            <div id="mermaidGraphSection" class="mode-section hidden">
-                <h3>Syntax Graph Visualization</h3>
-                <label for="graphOrientation">Graph Orientation:</label>
-                <select id="graphOrientation">
-                    <option value="TB">Top to Bottom (TB)</option>
-                    <option value="LR">Left to Right (LR)</option>
-                </select>
-                <!-- Download button removed -->
-                <div id="mermaidGraphContainer" class="mermaid-container">
-                    <!-- Mermaid graph will be rendered here -->
-                </div>
+            <!-- Mode 3: Assign Tokens to Verbal Units -->
+            <div id="mode3Section" class="mode-section hidden">
+                <h3>Mode 3: Assign Tokens to Verbal Units</h3>
+                <label for="vuSelectorForAssignment">Select Verbal Unit to assign tokens to:</label>
+                <select id="vuSelectorForAssignment" disabled></select>
+                <p>Click on lexical tokens in the sentence display above to assign/unassign them to the selected verbal unit.</p>
+                <p>Status: <span id="mode3Status">Pending token assignments.</span></p>
             </div>
-            
+
             <!-- Mode 4: Token Relations -->
             <div id="mode4Section" class="mode-section hidden">
-                <h3>Annotation 4: Define Token Relations</h3>
+                <h3>Mode 4: Define Token Relations</h3>
                 <table id="relationsTable">
                     <thead>
                         <tr>
@@ -149,7 +134,18 @@
                     <tbody></tbody>
                 </table>
                 <button id="addImpliedTokenBtn">Add Implied Token Row</button>
-                <!-- tempMermaidRenderer removed -->
+                
+                <h4>Mermaid Graph Visualization</h4>
+                <label for="graphOrientation">Graph Orientation:</label>
+                <select id="graphOrientation">
+                    <option value="TB">Top to Bottom (TB)</option>
+                    <option value="LR">Left to Right (LR)</option>
+                </select>
+                <button id="downloadMermaidPngBtn">Download Graph as PNG</button>
+                <div id="mermaidGraphContainer" class="mermaid-container">
+                    <!-- Mermaid graph will be rendered here -->
+                </div>
+                <div id="tempMermaidRenderer"></div> <!-- Hidden div for mermaid PNG rendering -->
             </div>
         </div>
 
@@ -163,24 +159,24 @@
     <script>
         // --- Global State and Constants ---
         let ALL_CORPUS_TOKENS = [];
-        let SENTENCE_REFERENCES = []; 
+        let SENTENCE_REFERENCES = []; // Array of {urn: string, text: string (for display)}
         
         let currentAnnotation = {
             sentenceUrn: null,
-            sentenceCtsUrn: null, 
+            sentenceCtsUrn: null, // The URN used in the dropdown, might be different from token URNs base
             sentenceSequenceInMenu: -1,
             isAsyndeton: false,
             connectorTokenUrn: null,
-            verbalUnits: [], 
-            tokenToVuMap: {}, 
-            relations: [], 
-            selectedSentenceTokens: [] 
+            verbalUnits: [], // { id: string, syntacticType: string, semanticType: string, depth: number, color: string }
+            tokenToVuMap: {}, // { tokenOriginalUrn: vuId }
+            relations: [], // { reference: number, tokenText: string, originalTokenUrn: string ("implied" or actual URN), node1: number|null, node1Rel: string|null, node2: number|null, node2Rel: string|null }
+            selectedSentenceTokens: [] // Full Token objects for the current sentence
         };
 
         let modeStatus = {
             mode1Complete: false,
-            mode2VuAdded: false, 
-            mode3MinTokensForVu: false 
+            mode2VuAdded: false, // True if at least one VU is added
+            mode3MinTokensForVu: false // True if any VU has >1 token assigned
         };
 
         const PASTEL_COLORS = ['#FFB3BA', '#FFDFBA', '#FFFFBA', '#BAFFC9', '#BAE1FF', '#E0BBE4', '#FFDAC1', '#B5EAD7', '#C7CEEA'];
@@ -202,16 +198,12 @@
         const sentenceSelector = document.getElementById('sentenceSelector');
         const sentenceTokenDisplay = document.getElementById('sentenceTokenDisplay');
         
-        const mode1Section = document.getElementById('mode1Section'); 
         const annotationModesContainer = document.getElementById('annotationModesContainer');
         // Mode 1
+        const mode1Section = document.getElementById('mode1Section');
         const asyndetonCheckbox = document.getElementById('asyndetonCheckbox');
         const mode1Prompt = document.getElementById('mode1Prompt');
         const mode1Status = document.getElementById('mode1Status');
-        // Mode 3 (Now appears before Mode 2 in HTML, but logic depends on Mode 2)
-        const mode3Section = document.getElementById('mode3Section');
-        const vuSelectorForAssignment = document.getElementById('vuSelectorForAssignment');
-        const mode3Status = document.getElementById('mode3Status');
         // Mode 2
         const mode2Section = document.getElementById('mode2Section');
         const verbalUnitsTableBody = document.getElementById('verbalUnitsTable').getElementsByTagName('tbody')[0];
@@ -220,14 +212,17 @@
         const vuDepthInput = document.getElementById('vuDepth');
         const addVuBtn = document.getElementById('addVuBtn');
         const mode2Status = document.getElementById('mode2Status');
-        // Mermaid Graph
-        const mermaidGraphSection = document.getElementById('mermaidGraphSection'); 
-        const graphOrientationSelect = document.getElementById('graphOrientation');
-        const mermaidGraphContainer = document.getElementById('mermaidGraphContainer');
+        // Mode 3
+        const mode3Section = document.getElementById('mode3Section');
+        const vuSelectorForAssignment = document.getElementById('vuSelectorForAssignment');
+        const mode3Status = document.getElementById('mode3Status');
         // Mode 4
         const mode4Section = document.getElementById('mode4Section');
         const relationsTableBody = document.getElementById('relationsTable').getElementsByTagName('tbody')[0];
         const addImpliedTokenBtn = document.getElementById('addImpliedTokenBtn');
+        const graphOrientationSelect = document.getElementById('graphOrientation');
+        const downloadMermaidPngBtn = document.getElementById('downloadMermaidPngBtn');
+        const mermaidGraphContainer = document.getElementById('mermaidGraphContainer');
         // Download
         const dataDownloadSection = document.getElementById('dataDownloadSection');
         const downloadAnnotationsBtn = document.getElementById('downloadAnnotationsBtn');
@@ -239,10 +234,10 @@
             sentenceSelector.addEventListener('change', handleSentenceSelect);
             asyndetonCheckbox.addEventListener('change', handleAsyndetonCheck);
             addVuBtn.addEventListener('click', handleAddVerbalUnit);
-            vuSelectorForAssignment.addEventListener('change', () => renderSentenceTokens()); 
+            vuSelectorForAssignment.addEventListener('change', () => renderSentenceTokens()); // Re-render to clear previous VU highlights potentially
             addImpliedTokenBtn.addEventListener('click', handleAddImpliedToken);
             graphOrientationSelect.addEventListener('change', renderMermaidGraph);
-            // downloadMermaidPngBtn event listener removed
+            downloadMermaidPngBtn.addEventListener('click', downloadMermaidAsPng);
             downloadAnnotationsBtn.addEventListener('click', handleDownloadAnnotations);
         };
 
@@ -267,7 +262,7 @@
                     ALL_CORPUS_TOKENS = greeklib.tokenize(ctsDataLines);
                     SENTENCE_REFERENCES = greeklib.sentences(ctsDataLines).map((urn, index) => ({
                         urn: urn,
-                        text: `${index + 1}. ${urn.split(':').pop()}` 
+                        text: `${index + 1}. ${urn.split(':').pop()}` // Simple display text
                     }));
 
                     populateSentenceSelector();
@@ -299,27 +294,33 @@
             }
             const selectedOption = sentenceSelector.options[sentenceSelector.selectedIndex];
             
-            resetAnnotationEnvironment(); 
+            resetAnnotationEnvironment(); // Clear previous sentence data
 
             currentAnnotation.sentenceCtsUrn = selectedUrn;
             currentAnnotation.sentenceSequenceInMenu = parseInt(selectedOption.dataset.index);
+
+            // Filter tokens for the selected sentence. greeklib.tokens expects the URN and all tokens.
             currentAnnotation.selectedSentenceTokens = greeklib.tokens(selectedUrn, ALL_CORPUS_TOKENS);
             
+            // The URN for the #!sentences block should be the one from the menu.
+            // Individual token URNs will be used for connectors etc.
+            // The first token's URN can give a base for the sentence if needed for other purposes,
+            // but sentenceCtsUrn is the identifier for the selected passage.
             if (currentAnnotation.selectedSentenceTokens.length > 0) {
                  currentAnnotation.sentenceUrn = currentAnnotation.selectedSentenceTokens[0].urn.substring(0, currentAnnotation.selectedSentenceTokens[0].urn.lastIndexOf(':') +1) + selectedUrn.split(':').pop();
             } else {
-                 currentAnnotation.sentenceUrn = selectedUrn; 
+                 currentAnnotation.sentenceUrn = selectedUrn; // Fallback if no tokens
             }
 
-            mode1Section.classList.remove('hidden'); 
-            annotationModesContainer.classList.remove('hidden'); 
+
+            annotationModesContainer.classList.remove('hidden');
             dataDownloadSection.classList.remove('hidden');
-            downloadAnnotationsBtn.disabled = true; 
+            downloadAnnotationsBtn.disabled = true; // Enabled when Mode 1 is complete
 
             initializeMode1();
-            initializeMode4TableStructure(); 
+            initializeMode4TableStructure(); // Prepare data structure even if hidden
             renderSentenceTokens();
-            updateModeSectionsVisibility(); 
+            updateModeSectionsVisibility();
         }
         
         function resetAnnotationEnvironment() {
@@ -350,10 +351,9 @@
             nextPastelColorIndex = 0;
             impliedTokenCounter = -1;
 
-            mode1Section.classList.add('hidden'); 
-            annotationModesContainer.classList.add('hidden'); 
+            annotationModesContainer.classList.add('hidden');
             dataDownloadSection.classList.add('hidden');
-            updateModeSectionsVisibility(); 
+            updateModeSectionsVisibility();
         }
 
         function renderSentenceTokens() {
@@ -367,7 +367,7 @@
                 const tokenSpan = document.createElement('span');
                 tokenSpan.classList.add('token');
                 tokenSpan.dataset.urn = token.urn;
-                tokenSpan.dataset.sequence = token.sequence; 
+                tokenSpan.dataset.sequence = token.sequence; // Store sequence for easy access
                 tokenSpan.dataset.type = token.type;
 
                 let tokenTextContent = token.text;
@@ -384,9 +384,11 @@
                     
                     tokenSpan.addEventListener('click', () => handleTokenClick(token));
 
+                    // Highlight connecting word for Mode 1
                     if (modeStatus.mode1Complete && !currentAnnotation.isAsyndeton && token.urn === currentAnnotation.connectorTokenUrn) {
                         tokenSpan.classList.add('connecting-word');
                     }
+                    // Highlight for Mode 3 (Verbal Unit assignment)
                     const assignedVuId = currentAnnotation.tokenToVuMap[token.urn];
                     if (assignedVuId) {
                         const vu = currentAnnotation.verbalUnits.find(v => v.id === assignedVuId);
@@ -402,6 +404,7 @@
 
                 sentenceTokenDisplay.appendChild(tokenSpan);
 
+                // Spacing logic
                 let nextTokenIsPunctuation = false;
                 if (index + 1 < currentAnnotation.selectedSentenceTokens.length) {
                     nextTokenIsPunctuation = currentAnnotation.selectedSentenceTokens[index + 1].type === 'punctuation';
@@ -413,28 +416,22 @@
                     if (!nextTokenIsPunctuation) {
                         sentenceTokenDisplay.appendChild(document.createTextNode(' '));
                     }
-                } else { 
+                } else { // other types if any
                      sentenceTokenDisplay.appendChild(document.createTextNode(' '));
                 }
             });
         }
         
         function handleTokenClick(token) {
+            // Mode 1: Selecting connector word
             if (!modeStatus.mode1Complete && !asyndetonCheckbox.checked && token.type === 'lexical') {
                 currentAnnotation.connectorTokenUrn = token.urn;
                 mode1Prompt.textContent = `Selected connector: ${token.text} (URN: ${token.urn})`;
                 completeMode1();
-                renderSentenceTokens(); 
+                renderSentenceTokens(); // Re-render to show highlight
             }
-            // Check mode1Complete for Mode 3 activation, and mode2VuAdded for actual usability of Mode 3
-            else if (modeStatus.mode1Complete && token.type === 'lexical') { 
-                if (!modeStatus.mode2VuAdded) {
-                    // This case should ideally be prevented by disabling vuSelectorForAssignment,
-                    // but a direct click on a token might still happen.
-                    // Guide user to define VUs first if they click a token for assignment.
-                    alert("Please define Verbal Units in Annotation 2 before assigning tokens.");
-                    return;
-                }
+            // Mode 3: Assigning token to verbal unit
+            else if (modeStatus.mode1Complete && modeStatus.mode2VuAdded && token.type === 'lexical') {
                 const selectedVuId = vuSelectorForAssignment.value;
                 if (!selectedVuId) {
                     alert('Please select a verbal unit from the dropdown first.');
@@ -442,15 +439,15 @@
                 }
 
                 const currentAssignment = currentAnnotation.tokenToVuMap[token.urn];
-                if (currentAssignment === selectedVuId) { 
+                if (currentAssignment === selectedVuId) { // Toggle off
                     delete currentAnnotation.tokenToVuMap[token.urn];
-                } else { 
+                } else { // Assign or re-assign
                     currentAnnotation.tokenToVuMap[token.urn] = selectedVuId;
                 }
-                checkMinTokensForVU(); 
-                renderSentenceTokens(); 
-                updateModeSectionsVisibility(); 
-                renderRelationsTable(); 
+                checkMinTokensForVU(); // Check if Mode 4 can be unlocked
+                renderSentenceTokens(); // Re-render to show VU color
+                updateModeSectionsVisibility(); // Potentially unlock Mode 4
+                renderRelationsTable(); // To update VU assignments if visible
             }
         }
 
@@ -471,14 +468,15 @@
                 currentAnnotation.connectorTokenUrn = null;
                 mode1Prompt.textContent = 'Asyndeton selected.';
                 completeMode1();
-                renderSentenceTokens(); 
+                renderSentenceTokens(); // Remove any connector highlight
             } else {
                 currentAnnotation.isAsyndeton = false;
+                // If already complete, changing this means user needs to pick a connector
                 if (modeStatus.mode1Complete) {
-                     modeStatus.mode1Complete = false; 
+                     modeStatus.mode1Complete = false; // Re-open mode 1 essentially
                      mode1Status.textContent = 'Asyndeton unchecked. Select a connector token.';
                      downloadAnnotationsBtn.disabled = true;
-                     updateModeSectionsVisibility(); 
+                     updateModeSectionsVisibility(); // Lock subsequent modes until connector chosen
                 }
                  mode1Prompt.textContent = 'If not asyndeton, click on the connecting lexical token in the sentence above.';
             }
@@ -510,23 +508,23 @@
                 semanticType,
                 depth,
                 color: PASTEL_COLORS[nextPastelColorIndex % PASTEL_COLORS.length],
-                sentenceUrn: currentAnnotation.sentenceCtsUrn 
+                sentenceUrn: currentAnnotation.sentenceCtsUrn // Link to the selected passage URN
             };
             nextPastelColorIndex++;
             currentAnnotation.verbalUnits.push(newVu);
             
-            modeStatus.mode2VuAdded = true; // This is key for enabling Mode 3's selector
+            modeStatus.mode2VuAdded = true;
             mode2Status.textContent = `Verbal units defined: ${currentAnnotation.verbalUnits.length}.`;
             renderVerbalUnitsTable();
-            updateVuSelectorForAssignment(); // This will enable the selector in Mode 3
-            updateModeSectionsVisibility(); // Might unlock Mode 4 if conditions met via checkMinTokensForVU
+            updateVuSelectorForAssignment();
+            updateModeSectionsVisibility();
         }
 
         function renderVerbalUnitsTable() {
             verbalUnitsTableBody.innerHTML = '';
             currentAnnotation.verbalUnits.forEach(vu => {
                 const row = verbalUnitsTableBody.insertRow();
-                row.insertCell().textContent = vu.id.slice(-6); 
+                row.insertCell().textContent = vu.id.slice(-6); // Short ID for display
                 row.insertCell().textContent = vu.syntacticType;
                 row.insertCell().textContent = vu.semanticType;
                 row.insertCell().textContent = vu.depth;
@@ -543,6 +541,7 @@
         }
 
         function handleDeleteVerbalUnit(vuId) {
+            // Remove VU and any token assignments to it
             currentAnnotation.verbalUnits = currentAnnotation.verbalUnits.filter(vu => vu.id !== vuId);
             Object.keys(currentAnnotation.tokenToVuMap).forEach(tokenUrn => {
                 if (currentAnnotation.tokenToVuMap[tokenUrn] === vuId) {
@@ -557,15 +556,14 @@
                  mode2Status.textContent = `Verbal units defined: ${currentAnnotation.verbalUnits.length}.`;
             }
             
-            checkMinTokensForVU(); 
+            checkMinTokensForVU(); // Recheck for Mode 4 unlock
             renderVerbalUnitsTable();
-            updateVuSelectorForAssignment(); // This will update and possibly disable Mode 3's selector
-            renderSentenceTokens(); 
-            updateModeSectionsVisibility(); 
+            updateVuSelectorForAssignment();
+            renderSentenceTokens(); // Update token highlights
+            updateModeSectionsVisibility(); // Potentially lock/unlock modes
         }
 
-        // --- Mode 3: Assign Tokens to VUs ---
-        function updateVuSelectorForAssignment() { // Called when VUs change (Mode 2)
+        function updateVuSelectorForAssignment() {
             vuSelectorForAssignment.innerHTML = '<option value="">-- Select VU --</option>';
             if (currentAnnotation.verbalUnits.length > 0) {
                 currentAnnotation.verbalUnits.forEach(vu => {
@@ -575,13 +573,14 @@
                     option.style.backgroundColor = vu.color;
                     vuSelectorForAssignment.appendChild(option);
                 });
-                vuSelectorForAssignment.disabled = false; // Enable selector
+                vuSelectorForAssignment.disabled = false;
             } else {
-                vuSelectorForAssignment.disabled = true; // Disable if no VUs
+                vuSelectorForAssignment.disabled = true;
             }
         }
 
-        function checkMinTokensForVU() { // Called after token assignment in Mode 3
+        // --- Mode 3: Assign Tokens to VUs ---
+        function checkMinTokensForVU() {
             const tokenCountsByVu = {};
             currentAnnotation.verbalUnits.forEach(vu => tokenCountsByVu[vu.id] = 0);
             
@@ -593,9 +592,9 @@
             
             modeStatus.mode3MinTokensForVu = Object.values(tokenCountsByVu).some(count => count > 1);
             mode3Status.textContent = modeStatus.mode3MinTokensForVu ? 
-                "At least one VU has multiple tokens. Annotation 4 available." : 
-                "Assign multiple tokens to a single VU to enable Annotation 4.";
-            updateModeSectionsVisibility(); // This might show/hide Mode 4 and Graph
+                "At least one VU has multiple tokens. Mode 4 available." : 
+                "Assign multiple tokens to a single VU to enable Mode 4.";
+            updateModeSectionsVisibility();
         }
 
         // --- Mode 4: Token Relations ---
@@ -604,15 +603,15 @@
             currentAnnotation.selectedSentenceTokens.forEach(token => {
                 if (token.type === 'lexical') {
                     currentAnnotation.relations.push({
-                        reference: token.sequence, 
+                        reference: token.sequence, // Use sequence as reference
                         tokenText: token.text,
-                        originalTokenUrn: token.urn, 
+                        originalTokenUrn: token.urn, // Store original URN
                         node1: null, node1Rel: null,
                         node2: null, node2Rel: null
                     });
                 }
             });
-            impliedTokenCounter = -1; 
+            impliedTokenCounter = -1; // Reset for new sentence
             renderRelationsTable();
             renderMermaidGraph();
         }
@@ -638,6 +637,7 @@
                 row.insertCell().textContent = rel.reference;
                 row.insertCell().textContent = rel.tokenText;
 
+                // Node 1 ID
                 const node1Cell = row.insertCell();
                 const node1Input = document.createElement('input');
                 node1Input.type = 'number';
@@ -646,7 +646,7 @@
                     const val = e.target.value === '' ? null : parseInt(e.target.value);
                     if (val !== null && !validReferences.includes(val)) {
                         alert(`Invalid reference ID: ${val}. Must be one of: ${validReferences.join(', ')}`);
-                        e.target.value = rel.node1 === null ? '' : rel.node1; 
+                        e.target.value = rel.node1 === null ? '' : rel.node1; // Revert
                         return;
                     }
                     currentAnnotation.relations[rowIndex].node1 = val;
@@ -654,6 +654,7 @@
                 };
                 node1Cell.appendChild(node1Input);
 
+                // Node 1 Relation
                 const node1RelCell = row.insertCell();
                 const node1RelSelect = createRelationSelect(rel.node1Rel, (newVal) => {
                     currentAnnotation.relations[rowIndex].node1Rel = newVal;
@@ -661,6 +662,7 @@
                 });
                 node1RelCell.appendChild(node1RelSelect);
                 
+                // Node 2 ID
                 const node2Cell = row.insertCell();
                 const node2Input = document.createElement('input');
                 node2Input.type = 'number';
@@ -669,7 +671,7 @@
                     const val = e.target.value === '' ? null : parseInt(e.target.value);
                      if (val !== null && !validReferences.includes(val)) {
                         alert(`Invalid reference ID: ${val}. Must be one of: ${validReferences.join(', ')}`);
-                        e.target.value = rel.node2 === null ? '' : rel.node2; 
+                        e.target.value = rel.node2 === null ? '' : rel.node2; // Revert
                         return;
                     }
                     currentAnnotation.relations[rowIndex].node2 = val;
@@ -677,6 +679,7 @@
                 };
                 node2Cell.appendChild(node2Input);
 
+                // Node 2 Relation
                 const node2RelCell = row.insertCell();
                 const node2RelSelect = createRelationSelect(rel.node2Rel, (newVal) => {
                     currentAnnotation.relations[rowIndex].node2Rel = newVal;
@@ -684,12 +687,14 @@
                 });
                 node2RelCell.appendChild(node2RelSelect);
 
+                // Actions
                 const actionsCell = row.insertCell();
                 if (rel.originalTokenUrn === 'implied') {
                     const deleteBtn = document.createElement('button');
                     deleteBtn.textContent = 'Delete';
                     deleteBtn.classList.add('delete-btn');
                     deleteBtn.onclick = () => {
+                        // Also remove any links pointing to this implied token
                         const refToDelete = currentAnnotation.relations[rowIndex].reference;
                         currentAnnotation.relations = currentAnnotation.relations.filter((r, i) => i !== rowIndex);
                         currentAnnotation.relations.forEach(r => {
@@ -722,8 +727,8 @@
         }
 
         async function renderMermaidGraph() {
-            if (!modeStatus.mode3MinTokensForVu) { 
-                mermaidGraphContainer.innerHTML = 'Graph will appear here once Annotation 4 is active and relations are defined.';
+            if (!modeStatus.mode3MinTokensForVu) { // Only render if Mode 4 is active
+                mermaidGraphContainer.innerHTML = 'Graph will appear here once Mode 4 is active and relations are defined.';
                 return;
             }
 
@@ -733,7 +738,7 @@
 
             currentAnnotation.relations.forEach(rel => {
                 const sourceId = rel.reference;
-                const sourceLabel = rel.tokenText.replace(/"/g, '#quot;'); 
+                const sourceLabel = rel.tokenText.replace(/"/g, '#quot;'); // Escape quotes for mermaid label
 
                 if (rel.node1 !== null && rel.node1Rel) {
                     const target1Id = rel.node1;
@@ -757,13 +762,19 @@
                 }
             });
             
+            // "Do not include unlinked nodes in the graph."
+            // The above loop only adds edges, implicitly only including linked nodes.
+            // If we needed to explicitly add node definitions for nodes that are only targets,
+            // we would iterate nodesInGraph and add `id["label"]` lines if not already defined.
+            // But Mermaid typically handles this. The current logic effectively achieves this.
+
             if (nodesInGraph.size === 0) {
                  mermaidGraphContainer.innerHTML = 'No relations defined yet to display in graph.';
                  return;
             }
 
             try {
-                mermaidGraphContainer.innerHTML = ''; 
+                mermaidGraphContainer.innerHTML = ''; // Clear previous
                 const {svg} = await mermaid.render('graphDiv-' + Date.now(), mermaidDefinition);
                 mermaidGraphContainer.innerHTML = svg;
             } catch (e) {
@@ -772,42 +783,103 @@
             }
         }
         
-        // downloadMermaidAsPng function removed
+        async function downloadMermaidAsPng() {
+            const orientation = graphOrientationSelect.value;
+            let mermaidDefinition = `graph ${orientation}\n`;
+            // Rebuild definition for download to ensure it's current
+             currentAnnotation.relations.forEach(rel => {
+                const sourceId = rel.reference;
+                const sourceLabel = rel.tokenText.replace(/"/g, '#quot;');
+                if (rel.node1 !== null && rel.node1Rel) {
+                    const target1Id = rel.node1;
+                    const target1 = currentAnnotation.relations.find(r => r.reference === target1Id);
+                     if (target1) {
+                        const target1Label = target1.tokenText.replace(/"/g, '#quot;');
+                        mermaidDefinition += `    ${sourceId}["${sourceLabel}"] -- "${rel.node1Rel}" --> ${target1Id}["${target1Label}"]\n`;
+                    }
+                }
+                if (rel.node2 !== null && rel.node2Rel) {
+                    const target2Id = rel.node2;
+                     const target2 = currentAnnotation.relations.find(r => r.reference === target2Id);
+                     if (target2) {
+                        const target2Label = target2.tokenText.replace(/"/g, '#quot;');
+                        mermaidDefinition += `    ${sourceId}["${sourceLabel}"] -- "${rel.node2Rel}" --> ${target2Id}["${target2Label}"]\n`;
+                    }
+                }
+            });
+
+            if (mermaidDefinition === `graph ${orientation}\n`) {
+                alert("No graph data to download.");
+                return;
+            }
+            
+            try {
+                const tempRenderer = document.getElementById('tempMermaidRenderer');
+                const { svg } = await mermaid.render('tempgraph-' + Date.now(), mermaidDefinition);
+                
+                const img = new Image();
+                const svgBlob = new Blob([svg], {type: 'image/svg+xml;charset=utf-8'});
+                const url = URL.createObjectURL(svgBlob);
+
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    // Add some padding or scale for better rendering if needed
+                    canvas.width = img.width * 1.1; 
+                    canvas.height = img.height * 1.1;
+                    const ctx = canvas.getContext('2d');
+                    // Fill background for transparency issues if any (SVG might be transparent)
+                    ctx.fillStyle = 'white'; 
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, (canvas.width - img.width)/2, (canvas.height - img.height)/2); // Center it
+                    
+                    const pngUrl = canvas.toDataURL('image/png');
+                    const a = document.createElement('a');
+                    a.href = pngUrl;
+                    a.download = 'mermaid_graph.png';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                };
+                img.onerror = (e) => {
+                    console.error("Error loading SVG into image for PNG conversion:", e);
+                    alert("Failed to convert graph to PNG.");
+                    URL.revokeObjectURL(url);
+                }
+                img.src = url;
+
+            } catch (e) {
+                console.error("Error preparing PNG download:", e);
+                alert("Failed to generate PNG for download.");
+            }
+        }
 
         // --- UI State Management ---
         function updateModeSectionsVisibility() {
-            // mode1Section and annotationModesContainer visibility are handled by sentence selection.
-
-            // Sections *within* annotationModesContainer:
-            // Mode 3 (Assign Tokens) becomes visible once Mode 1 is complete.
-            // Its controls (vuSelectorForAssignment) are enabled/disabled by updateVuSelectorForAssignment based on modeStatus.mode2VuAdded.
-            mode3Section.classList.toggle('hidden', !modeStatus.mode1Complete);
-            
-            // Mode 2 (Define VUs) also becomes visible once Mode 1 is complete.
+            mode1Section.classList.toggle('hidden', !currentAnnotation.sentenceUrn);
             mode2Section.classList.toggle('hidden', !modeStatus.mode1Complete);
-            
-            // Graph and Mode 4 (Token Relations) become visible if Mode 3 has met its condition.
-            const showMode4AndGraph = modeStatus.mode3MinTokensForVu;
-            mermaidGraphSection.classList.toggle('hidden', !showMode4AndGraph); 
-            mode4Section.classList.toggle('hidden', !showMode4AndGraph);
-            
-            if (showMode4AndGraph) renderMermaidGraph(); 
+            mode3Section.classList.toggle('hidden', !modeStatus.mode2VuAdded);
+            mode4Section.classList.toggle('hidden', !modeStatus.mode3MinTokensForVu);
+            if (modeStatus.mode3MinTokensForVu) renderMermaidGraph(); // Render graph if Mode 4 becomes visible
         }
 
         // --- Data Download ---
         function handleDownloadAnnotations() {
             if (!modeStatus.mode1Complete) {
-                alert("Please complete Annotation 1 (Asyndeton/Connector) before downloading.");
+                alert("Please complete Mode 1 (Asyndeton/Connector) before downloading.");
                 return;
             }
 
             let output = "";
 
+            // #!sentences block
             output += "#!sentences\n";
             output += "sentence|sequence|connector\n";
             const connector = currentAnnotation.isAsyndeton ? "" : currentAnnotation.connectorTokenUrn || "";
+            // Use currentAnnotation.sentenceCtsUrn which is the URN from the dropdown menu
             output += `${currentAnnotation.sentenceCtsUrn}|${currentAnnotation.sentenceSequenceInMenu}|${connector}\n\n`;
 
+            // #!verbal_units block
             output += "#!verbal_units\n";
             output += "vuid|syntactic_type|semantic_type|depth|sentence\n";
             currentAnnotation.verbalUnits.forEach(vu => {
@@ -815,12 +887,13 @@
             });
             output += "\n";
 
+            // #!tokens block
             output += "#!tokens\n";
             output += "urn|reference|tokentype|text|verbalunit|node1|node1relation|node2|node2relation\n";
             
             currentAnnotation.relations.forEach(rel => {
-                let tokenUrn = rel.originalTokenUrn; 
-                let tokenType = "implied"; 
+                let tokenUrn = rel.originalTokenUrn; // 'implied' or actual URN
+                let tokenType = "implied"; // Default for implied
                 let tokenText = rel.tokenText;
                 let verbalUnit = "";
 
@@ -828,9 +901,11 @@
                     const originalToken = currentAnnotation.selectedSentenceTokens.find(t => t.urn === tokenUrn);
                     if (originalToken) {
                         tokenType = originalToken.type;
+                        // tokenText is already in rel.tokenText
                     }
                     verbalUnit = currentAnnotation.tokenToVuMap[tokenUrn] || "";
-                } else { 
+                } else { // Implied token - find VU from a linked actual token
+                    // Strategy: check if this implied token is node1 or node2 of an actual token
                     for (const otherRel of currentAnnotation.relations) {
                         if (otherRel.originalTokenUrn !== 'implied') {
                             if (otherRel.node1 === rel.reference || otherRel.node2 === rel.reference) {
@@ -839,6 +914,7 @@
                             }
                         }
                     }
+                    // If not found, check if this implied token links to an actual token
                     if (!verbalUnit && rel.node1 !== null) {
                         const linkedNode1 = currentAnnotation.relations.find(r => r.reference === rel.node1 && r.originalTokenUrn !== 'implied');
                         if (linkedNode1) verbalUnit = currentAnnotation.tokenToVuMap[linkedNode1.originalTokenUrn] || "";
@@ -852,6 +928,7 @@
                 output += `${tokenUrn}|${rel.reference}|${tokenType}|${tokenText}|${verbalUnit}|${rel.node1 === null ? '' : rel.node1}|${rel.node1Rel || ''}|${rel.node2 === null ? '' : rel.node2}|${rel.node2Rel || ''}\n`;
             });
 
+            // Create download link
             const blob = new Blob([output], { type: 'text/plain;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');

@@ -34,7 +34,7 @@
         .delete-btn { background-color: #dc3545; }
         .delete-btn:hover { background-color: #c82333; }
         .mermaid-container { margin-top: 15px; border: 1px solid #ccc; padding: 10px; min-height: 100px; }
-        /* #tempMermaidRenderer removed as PNG download is gone */
+        #tempMermaidRenderer { display: none; } /* For PNG generation */
     </style>
 </head>
 <body>
@@ -53,8 +53,8 @@
             <select id="sentenceSelector" disabled></select>
         </div>
 
-        <!-- Mode 1: Asyndeton / Connecting Word -->
-        <div id="mode1Section" class="mode-section hidden">
+        <!-- Mode 1: Asyndeton / Connecting Word (Moved Here) -->
+        <div id="mode1Section" class="mode-section hidden"> <!-- Initially hidden -->
             <h3>Annotation 1: Asyndeton / Connecting Word</h3>
             <label>
                 <input type="checkbox" id="asyndetonCheckbox"> This sentence illustrates asyndeton.
@@ -67,18 +67,8 @@
         <h2>2. Sentence Tokens</h2>
         <div id="sentenceTokenDisplay" class="token-display">Select a sentence to see tokens.</div>
 
-        <!-- Annotation Modes Container (for modes 3, 2, graph, 4) -->
+        <!-- Annotation Modes Container (for modes 2, 3, 4 and graph) -->
         <div id="annotationModesContainer" class="hidden">
-            
-            <!-- Mode 3: Assign Tokens to Verbal Units (Moved Here) -->
-            <div id="mode3Section" class="mode-section hidden">
-                <h3>Annotation 3: Assign Tokens to Verbal Units</h3>
-                <label for="vuSelectorForAssignment">Select Verbal Unit to assign tokens to:</label>
-                <select id="vuSelectorForAssignment" disabled></select>
-                <p>Click on lexical tokens in the sentence display above to assign/unassign them to the selected verbal unit. (Define verbal units in Annotation 2 first)</p>
-                <p>Status: <span id="mode3Status">Pending token assignments.</span></p>
-            </div>
-
             <!-- Mode 2: Verbal Units -->
             <div id="mode2Section" class="mode-section hidden">
                 <h3>Annotation 2: Define Verbal Units</h3>
@@ -117,7 +107,16 @@
                 <p>Status: <span id="mode2Status">Pending first verbal unit.</span></p>
             </div>
 
-            <!-- Mermaid Graph Visualization -->
+            <!-- Mode 3: Assign Tokens to Verbal Units -->
+            <div id="mode3Section" class="mode-section hidden">
+                <h3>Annotation 3: Assign Tokens to Verbal Units</h3>
+                <label for="vuSelectorForAssignment">Select Verbal Unit to assign tokens to:</label>
+                <select id="vuSelectorForAssignment" disabled></select>
+                <p>Click on lexical tokens in the sentence display above to assign/unassign them to the selected verbal unit.</p>
+                <p>Status: <span id="mode3Status">Pending token assignments.</span></p>
+            </div>
+
+            <!-- Mermaid Graph Visualization (Moved Here) -->
             <div id="mermaidGraphSection" class="mode-section hidden">
                 <h3>Syntax Graph Visualization</h3>
                 <label for="graphOrientation">Graph Orientation:</label>
@@ -125,7 +124,7 @@
                     <option value="TB">Top to Bottom (TB)</option>
                     <option value="LR">Left to Right (LR)</option>
                 </select>
-                <!-- Download button removed -->
+                <button id="downloadMermaidPngBtn">Download Graph as PNG</button>
                 <div id="mermaidGraphContainer" class="mermaid-container">
                     <!-- Mermaid graph will be rendered here -->
                 </div>
@@ -149,7 +148,7 @@
                     <tbody></tbody>
                 </table>
                 <button id="addImpliedTokenBtn">Add Implied Token Row</button>
-                <!-- tempMermaidRenderer removed -->
+                <div id="tempMermaidRenderer"></div> <!-- Hidden div for mermaid PNG rendering -->
             </div>
         </div>
 
@@ -163,7 +162,7 @@
     <script>
         // --- Global State and Constants ---
         let ALL_CORPUS_TOKENS = [];
-        let SENTENCE_REFERENCES = []; 
+        let SENTENCE_REFERENCES = []; // Array of {urn: string, text: string (for display)}
         
         let currentAnnotation = {
             sentenceUrn: null,
@@ -202,16 +201,12 @@
         const sentenceSelector = document.getElementById('sentenceSelector');
         const sentenceTokenDisplay = document.getElementById('sentenceTokenDisplay');
         
-        const mode1Section = document.getElementById('mode1Section'); 
+        const mode1Section = document.getElementById('mode1Section'); // Now top-level access
         const annotationModesContainer = document.getElementById('annotationModesContainer');
-        // Mode 1
+        // Mode 1 (elements within mode1Section)
         const asyndetonCheckbox = document.getElementById('asyndetonCheckbox');
         const mode1Prompt = document.getElementById('mode1Prompt');
         const mode1Status = document.getElementById('mode1Status');
-        // Mode 3 (Now appears before Mode 2 in HTML, but logic depends on Mode 2)
-        const mode3Section = document.getElementById('mode3Section');
-        const vuSelectorForAssignment = document.getElementById('vuSelectorForAssignment');
-        const mode3Status = document.getElementById('mode3Status');
         // Mode 2
         const mode2Section = document.getElementById('mode2Section');
         const verbalUnitsTableBody = document.getElementById('verbalUnitsTable').getElementsByTagName('tbody')[0];
@@ -220,9 +215,14 @@
         const vuDepthInput = document.getElementById('vuDepth');
         const addVuBtn = document.getElementById('addVuBtn');
         const mode2Status = document.getElementById('mode2Status');
-        // Mermaid Graph
-        const mermaidGraphSection = document.getElementById('mermaidGraphSection'); 
+        // Mode 3
+        const mode3Section = document.getElementById('mode3Section');
+        const vuSelectorForAssignment = document.getElementById('vuSelectorForAssignment');
+        const mode3Status = document.getElementById('mode3Status');
+        // Mermaid Graph (newly grouped)
+        const mermaidGraphSection = document.getElementById('mermaidGraphSection'); // New wrapper
         const graphOrientationSelect = document.getElementById('graphOrientation');
+        const downloadMermaidPngBtn = document.getElementById('downloadMermaidPngBtn');
         const mermaidGraphContainer = document.getElementById('mermaidGraphContainer');
         // Mode 4
         const mode4Section = document.getElementById('mode4Section');
@@ -242,7 +242,7 @@
             vuSelectorForAssignment.addEventListener('change', () => renderSentenceTokens()); 
             addImpliedTokenBtn.addEventListener('click', handleAddImpliedToken);
             graphOrientationSelect.addEventListener('change', renderMermaidGraph);
-            // downloadMermaidPngBtn event listener removed
+            downloadMermaidPngBtn.addEventListener('click', downloadMermaidAsPng);
             downloadAnnotationsBtn.addEventListener('click', handleDownloadAnnotations);
         };
 
@@ -311,15 +311,16 @@
                  currentAnnotation.sentenceUrn = selectedUrn; 
             }
 
+            // Show Mode 1 and the container for other modes
             mode1Section.classList.remove('hidden'); 
-            annotationModesContainer.classList.remove('hidden'); 
+            annotationModesContainer.classList.remove('hidden');
             dataDownloadSection.classList.remove('hidden');
             downloadAnnotationsBtn.disabled = true; 
 
             initializeMode1();
             initializeMode4TableStructure(); 
             renderSentenceTokens();
-            updateModeSectionsVisibility(); 
+            updateModeSectionsVisibility(); // This will correctly hide modes 2,3,4 initially
         }
         
         function resetAnnotationEnvironment() {
@@ -350,10 +351,10 @@
             nextPastelColorIndex = 0;
             impliedTokenCounter = -1;
 
-            mode1Section.classList.add('hidden'); 
-            annotationModesContainer.classList.add('hidden'); 
+            mode1Section.classList.add('hidden'); // Hide Mode 1
+            annotationModesContainer.classList.add('hidden'); // Hide container for 2,3,4,graph
             dataDownloadSection.classList.add('hidden');
-            updateModeSectionsVisibility(); 
+            updateModeSectionsVisibility(); // Ensures internal sections are also reset to hidden
         }
 
         function renderSentenceTokens() {
@@ -426,15 +427,7 @@
                 completeMode1();
                 renderSentenceTokens(); 
             }
-            // Check mode1Complete for Mode 3 activation, and mode2VuAdded for actual usability of Mode 3
-            else if (modeStatus.mode1Complete && token.type === 'lexical') { 
-                if (!modeStatus.mode2VuAdded) {
-                    // This case should ideally be prevented by disabling vuSelectorForAssignment,
-                    // but a direct click on a token might still happen.
-                    // Guide user to define VUs first if they click a token for assignment.
-                    alert("Please define Verbal Units in Annotation 2 before assigning tokens.");
-                    return;
-                }
+            else if (modeStatus.mode1Complete && modeStatus.mode2VuAdded && token.type === 'lexical') {
                 const selectedVuId = vuSelectorForAssignment.value;
                 if (!selectedVuId) {
                     alert('Please select a verbal unit from the dropdown first.');
@@ -515,11 +508,11 @@
             nextPastelColorIndex++;
             currentAnnotation.verbalUnits.push(newVu);
             
-            modeStatus.mode2VuAdded = true; // This is key for enabling Mode 3's selector
+            modeStatus.mode2VuAdded = true;
             mode2Status.textContent = `Verbal units defined: ${currentAnnotation.verbalUnits.length}.`;
             renderVerbalUnitsTable();
-            updateVuSelectorForAssignment(); // This will enable the selector in Mode 3
-            updateModeSectionsVisibility(); // Might unlock Mode 4 if conditions met via checkMinTokensForVU
+            updateVuSelectorForAssignment();
+            updateModeSectionsVisibility();
         }
 
         function renderVerbalUnitsTable() {
@@ -559,13 +552,12 @@
             
             checkMinTokensForVU(); 
             renderVerbalUnitsTable();
-            updateVuSelectorForAssignment(); // This will update and possibly disable Mode 3's selector
+            updateVuSelectorForAssignment();
             renderSentenceTokens(); 
             updateModeSectionsVisibility(); 
         }
 
-        // --- Mode 3: Assign Tokens to VUs ---
-        function updateVuSelectorForAssignment() { // Called when VUs change (Mode 2)
+        function updateVuSelectorForAssignment() {
             vuSelectorForAssignment.innerHTML = '<option value="">-- Select VU --</option>';
             if (currentAnnotation.verbalUnits.length > 0) {
                 currentAnnotation.verbalUnits.forEach(vu => {
@@ -575,13 +567,14 @@
                     option.style.backgroundColor = vu.color;
                     vuSelectorForAssignment.appendChild(option);
                 });
-                vuSelectorForAssignment.disabled = false; // Enable selector
+                vuSelectorForAssignment.disabled = false;
             } else {
-                vuSelectorForAssignment.disabled = true; // Disable if no VUs
+                vuSelectorForAssignment.disabled = true;
             }
         }
 
-        function checkMinTokensForVU() { // Called after token assignment in Mode 3
+        // --- Mode 3: Assign Tokens to VUs ---
+        function checkMinTokensForVU() {
             const tokenCountsByVu = {};
             currentAnnotation.verbalUnits.forEach(vu => tokenCountsByVu[vu.id] = 0);
             
@@ -595,7 +588,7 @@
             mode3Status.textContent = modeStatus.mode3MinTokensForVu ? 
                 "At least one VU has multiple tokens. Annotation 4 available." : 
                 "Assign multiple tokens to a single VU to enable Annotation 4.";
-            updateModeSectionsVisibility(); // This might show/hide Mode 4 and Graph
+            updateModeSectionsVisibility();
         }
 
         // --- Mode 4: Token Relations ---
@@ -722,6 +715,7 @@
         }
 
         async function renderMermaidGraph() {
+            // Graph rendering is tied to mode3MinTokensForVu (which controls visibility of graphSection and mode4Section)
             if (!modeStatus.mode3MinTokensForVu) { 
                 mermaidGraphContainer.innerHTML = 'Graph will appear here once Annotation 4 is active and relations are defined.';
                 return;
@@ -772,21 +766,85 @@
             }
         }
         
-        // downloadMermaidAsPng function removed
+        async function downloadMermaidAsPng() {
+            const orientation = graphOrientationSelect.value;
+            let mermaidDefinition = `graph ${orientation}\n`;
+             currentAnnotation.relations.forEach(rel => {
+                const sourceId = rel.reference;
+                const sourceLabel = rel.tokenText.replace(/"/g, '#quot;');
+                if (rel.node1 !== null && rel.node1Rel) {
+                    const target1Id = rel.node1;
+                    const target1 = currentAnnotation.relations.find(r => r.reference === target1Id);
+                     if (target1) {
+                        const target1Label = target1.tokenText.replace(/"/g, '#quot;');
+                        mermaidDefinition += `    ${sourceId}["${sourceLabel}"] -- "${rel.node1Rel}" --> ${target1Id}["${target1Label}"]\n`;
+                    }
+                }
+                if (rel.node2 !== null && rel.node2Rel) {
+                    const target2Id = rel.node2;
+                     const target2 = currentAnnotation.relations.find(r => r.reference === target2Id);
+                     if (target2) {
+                        const target2Label = target2.tokenText.replace(/"/g, '#quot;');
+                        mermaidDefinition += `    ${sourceId}["${sourceLabel}"] -- "${rel.node2Rel}" --> ${target2Id}["${target2Label}"]\n`;
+                    }
+                }
+            });
+
+            if (mermaidDefinition === `graph ${orientation}\n`) {
+                alert("No graph data to download.");
+                return;
+            }
+            
+            try {
+                const tempRenderer = document.getElementById('tempMermaidRenderer');
+                const { svg } = await mermaid.render('tempgraph-' + Date.now(), mermaidDefinition);
+                
+                const img = new Image();
+                const svgBlob = new Blob([svg], {type: 'image/svg+xml;charset=utf-8'});
+                const url = URL.createObjectURL(svgBlob);
+
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width * 1.1; 
+                    canvas.height = img.height * 1.1;
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = 'white'; 
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, (canvas.width - img.width)/2, (canvas.height - img.height)/2); 
+                    
+                    const pngUrl = canvas.toDataURL('image/png');
+                    const a = document.createElement('a');
+                    a.href = pngUrl;
+                    a.download = 'syntax_graph.png'; // Updated download name
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                };
+                img.onerror = (e) => {
+                    console.error("Error loading SVG into image for PNG conversion:", e);
+                    alert("Failed to convert graph to PNG.");
+                    URL.revokeObjectURL(url);
+                }
+                img.src = url;
+
+            } catch (e) {
+                console.error("Error preparing PNG download:", e);
+                alert("Failed to generate PNG for download.");
+            }
+        }
 
         // --- UI State Management ---
         function updateModeSectionsVisibility() {
-            // mode1Section and annotationModesContainer visibility are handled by sentence selection.
+            // Mode 1 section visibility is handled by sentence selection (show) and reset (hide)
+            // It's already correctly set to hidden initially in HTML.
+            // And handleSentenceSelect removes 'hidden' when sentence is chosen.
+            // resetAnnotationEnvironment adds 'hidden' when sentence is deselected/reset.
 
-            // Sections *within* annotationModesContainer:
-            // Mode 3 (Assign Tokens) becomes visible once Mode 1 is complete.
-            // Its controls (vuSelectorForAssignment) are enabled/disabled by updateVuSelectorForAssignment based on modeStatus.mode2VuAdded.
-            mode3Section.classList.toggle('hidden', !modeStatus.mode1Complete);
-            
-            // Mode 2 (Define VUs) also becomes visible once Mode 1 is complete.
+            // Modes within annotationModesContainer:
             mode2Section.classList.toggle('hidden', !modeStatus.mode1Complete);
+            mode3Section.classList.toggle('hidden', !modeStatus.mode2VuAdded);
             
-            // Graph and Mode 4 (Token Relations) become visible if Mode 3 has met its condition.
             const showMode4AndGraph = modeStatus.mode3MinTokensForVu;
             mermaidGraphSection.classList.toggle('hidden', !showMode4AndGraph); 
             mode4Section.classList.toggle('hidden', !showMode4AndGraph);
