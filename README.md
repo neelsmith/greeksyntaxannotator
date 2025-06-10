@@ -12,25 +12,19 @@
 
 
 
-It uses the same model of Greek syntax described in [this Julia package](https://neelsmith.github.io/GreekSyntax), and serializes annotatoins to the same file format documented there.
+It uses the same model of Greek syntax described in [this Julia package](https://neelsmith.github.io/GreekSyntax), and serializes annotations to the  file format documented there.
 
 
-## Status
+## Contents
 
-Version 1.0 is an initial release. Its main features are:
+Version 2.0 is a complete rewrite of the. Its main features are:
 
 - load a citable corpus from CEX source
 - annotate syntax as summarized above
 - save the results to a structured plain-text file
 
-
-## Screen shot
-
-![Screen shot](./annotator-1.0.png)
-
-
-
+In addition to the app in [syntaxannotator.html](./syntaxannotator.html), there is a brief [user's guide](./guide.md)
 
 ## Caveats
 
-The web app was written entirely by gemini-2.5-pro. The code passes some sanity tests, but I have not even looked at the javascript. When I encountered errors, I let gemini fix them. Use the code as you like, but be aware that I have no idea what it does or how it works.
+The web app and accompanying guide was written entirely by gemini-2.5-pro. The code passes some sanity tests, but I have not even looked at the javascript. When I encountered errors, I let gemini fix them. Use the code as you like, but be aware that I have no idea what it does or how it works.
