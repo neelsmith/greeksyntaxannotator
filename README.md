@@ -12,7 +12,7 @@
 
 
 
-It uses the same model of Greek syntax described in [this Julia package](https://neelsmith.github.io/GreekSyntax), and serializes annotations to the  file format documented there.
+It uses the same model of Greek syntax described in [this Julia package](https://neelsmith.github.io/GreekSyntax.jl), and serializes annotations to the  file format documented there.
 
 
 ## Contents
