@@ -175,3 +175,7 @@ Could you change the layout of the form labelled "Add New Verbal Unit:" ?  It cu
 ---
 
 Beautiful! I'd like to make one tweak to the display of the Mermaid graph. I'd like to visually distinguish nodes for *implied tokens*  that the user has added.  Without in any way changing the behavior of the web app, could you color the implied token nodes differently, perhaps with a sort of orange-yellow "caution" color?
+
+---
+
+In the menu labelled "Syntactic type:" that users use to set values for the syntactic type when adding a new verbal unit, could you please add an option for "quote" ?
