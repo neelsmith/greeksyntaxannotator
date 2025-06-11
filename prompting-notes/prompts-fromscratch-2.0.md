@@ -167,3 +167,11 @@ Fantastic! Now let's let the user choose the name of the output file when downlo
 ---
 
 This is great. Could you write a very brief user's guide to using the app?
+
+---
+
+Could you change the layout of the form labelled "Add New Verbal Unit:" ?  It currently lays out the the three items of information ("Syntactic Type:", "Semantic Type:" and "Depth (integer)") stacked like rows in a table. I'd like to place them side by side like columns in a row.
+
+---
+
+Beautiful! I'd like to make one tweak to the display of the Mermaid graph. I'd like to visually distinguish nodes for *implied tokens*  that the user has added.  Without in any way changing the behavior of the web app, could you color the implied token nodes differently, perhaps with a sort of orange-yellow "caution" color?

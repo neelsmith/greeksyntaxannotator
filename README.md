@@ -17,7 +17,7 @@ It uses the same model of Greek syntax described in [this Julia package](https:/
 
 ## Contents
 
-Version 2.0 is a complete rewrite of the. Its main features are:
+Version 2.x is a complete rewrite of the app. Its main features are:
 
 - load a citable corpus from CEX source
 - annotate syntax as summarized above

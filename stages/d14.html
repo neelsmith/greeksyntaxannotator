@@ -13,6 +13,7 @@
         h1, h2, h3 { color: #555; display: flex; justify-content: space-between; align-items: center; }
         label { display: block; margin-top: 10px; }
         input[type="text"], input[type="number"], select {
+            /* Default width for most inputs/selects */
             width: 90%; 
             padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px;
         }
@@ -75,24 +76,25 @@
         .node-rel-subject { text-decoration: underline; }
         .node-rel-dobj-pred { text-decoration: underline overline; }
 
+        /* Styles for "Add New Verbal Unit" form layout */
         #addVuFormLayout {
             display: flex;
-            gap: 1em; 
-            align-items: flex-start; 
-            flex-wrap: wrap; 
-            margin-bottom: 10px; 
+            gap: 1em; /* Spacing between form groups */
+            align-items: flex-start; /* Align items to the top */
+            flex-wrap: wrap; /* Allow wrapping on very small screens */
+            margin-bottom: 10px; /* Space before the button */
         }
         .vu-form-group {
-            flex: 1; 
-            min-width: 180px; 
+            flex: 1; /* Each group will try to take equal space */
+            min-width: 180px; /* Minimum width for each group before wrapping */
         }
         .vu-form-group label {
-            margin-top: 0; 
+            margin-top: 0; /* Override default label margin-top for this specific layout */
         }
         .vu-form-group select,
         .vu-form-group input[type="number"] {
-            width: 100%; 
-            box-sizing: border-box; 
+            width: 100%; /* Make the select/input take the full width of its parent .vu-form-group */
+            box-sizing: border-box; /* Ensures padding and border don't add to the 100% width */
         }
 
     </style>
@@ -907,40 +909,30 @@
 
             const orientation = graphOrientationSelect.value;
             let mermaidDefinition = `graph ${orientation}\n`;
-            const edges = [];
-            const nodesInGraph = new Map(); 
+            const nodesInGraph = new Set();
 
             currentAnnotation.relations.forEach(rel => {
                 const sourceId = rel.reference;
-                const sourceTokenInfo = currentAnnotation.relations.find(r => r.reference === sourceId); 
-                
-                if (!sourceTokenInfo) return; 
-
-                const sourceLabel = sourceTokenInfo.tokenText.replace(/"/g, '#quot;');
-                const sourceIsImplied = sourceTokenInfo.originalTokenUrn === 'implied';
+                const sourceLabel = rel.tokenText.replace(/"/g, '#quot;'); 
 
                 if (rel.node1 !== null && rel.node1Rel) {
                     const target1Id = rel.node1;
-                    const target1TokenInfo = currentAnnotation.relations.find(r => r.reference === target1Id);
-                    if (target1TokenInfo) {
-                        const target1Label = target1TokenInfo.tokenText.replace(/"/g, '#quot;');
-                        const target1IsImplied = target1TokenInfo.originalTokenUrn === 'implied';
-                        
-                        edges.push(`    ${sourceId} -- "${rel.node1Rel}" --> ${target1Id}\n`);
-                        if (!nodesInGraph.has(sourceId)) nodesInGraph.set(sourceId, { label: sourceLabel, implied: sourceIsImplied });
-                        if (!nodesInGraph.has(target1Id)) nodesInGraph.set(target1Id, { label: target1Label, implied: target1IsImplied });
+                    const target1 = currentAnnotation.relations.find(r => r.reference === target1Id);
+                    if (target1) {
+                        const target1Label = target1.tokenText.replace(/"/g, '#quot;');
+                        mermaidDefinition += `    ${sourceId}["${sourceLabel}"] -- "${rel.node1Rel}" --> ${target1Id}["${target1Label}"]\n`;
+                        nodesInGraph.add(sourceId);
+                        nodesInGraph.add(target1Id);
                     }
                 }
                 if (rel.node2 !== null && rel.node2Rel) {
                     const target2Id = rel.node2;
-                    const target2TokenInfo = currentAnnotation.relations.find(r => r.reference === target2Id);
-                    if (target2TokenInfo) {
-                        const target2Label = target2TokenInfo.tokenText.replace(/"/g, '#quot;');
-                        const target2IsImplied = target2TokenInfo.originalTokenUrn === 'implied';
-
-                        edges.push(`    ${sourceId} -- "${rel.node2Rel}" --> ${target2Id}\n`);
-                        if (!nodesInGraph.has(sourceId)) nodesInGraph.set(sourceId, { label: sourceLabel, implied: sourceIsImplied });
-                        if (!nodesInGraph.has(target2Id)) nodesInGraph.set(target2Id, { label: target2Label, implied: target2IsImplied });
+                    const target2 = currentAnnotation.relations.find(r => r.reference === target2Id);
+                     if (target2) {
+                        const target2Label = target2.tokenText.replace(/"/g, '#quot;');
+                        mermaidDefinition += `    ${sourceId}["${sourceLabel}"] -- "${rel.node2Rel}" --> ${target2Id}["${target2Label}"]\n`;
+                        nodesInGraph.add(sourceId);
+                        nodesInGraph.add(target2Id);
                     }
                 }
             });
@@ -950,28 +942,12 @@
                  return;
             }
 
-            nodesInGraph.forEach((nodeInfo, nodeId) => {
-                mermaidDefinition += `    ${nodeId}["${nodeInfo.label}"]\n`;
-            });
-
-            edges.forEach(edge => {
-                mermaidDefinition += edge;
-            });
-
-            const impliedNodeColor = "#FFBF00"; 
-            const impliedNodeStrokeColor = "#B38600"; 
-            nodesInGraph.forEach((nodeInfo, nodeId) => {
-                if (nodeInfo.implied) {
-                    mermaidDefinition += `    style ${nodeId} fill:${impliedNodeColor},stroke:${impliedNodeStrokeColor},stroke-width:2px\n`;
-                }
-            });
-
             try {
                 mermaidGraphContainer.innerHTML = ''; 
                 const {svg} = await mermaid.render('graphDiv-' + Date.now(), mermaidDefinition);
                 mermaidGraphContainer.innerHTML = svg;
             } catch (e) {
-                console.error("Mermaid rendering error:", e, "\nDefinition:", mermaidDefinition);
+                console.error("Mermaid rendering error:", e);
                 mermaidGraphContainer.textContent = "Error rendering graph. Check console.";
             }
         }
