@@ -23,7 +23,8 @@ Version 2.x is a complete rewrite of the app. Its main features are:
 - annotate syntax as summarized above
 - save the results to a structured plain-text file
 
-In addition to the app in [syntaxannotator.html](./syntaxannotator.html), there is a brief [user's guide](./guide.md)
+
+
 ## Summary of values used in annotations
 
 
@@ -43,18 +44,18 @@ In addition to the app in [syntaxannotator.html](./syntaxannotator.html), there 
     - `infinitive in indirect statement`: relate infinitive to verb of speaking
     - `participle in indirect statement`: relate participle to verb of speaking
     - `quote`: relate principal verb to implied or explicit verb of speaking
-    - `predicate`: relate
-    - `subject`
-    - `direct address`
-    - `complementary infinitive`
-    - `supplementary participle`
-    - `modal particle`
-    - `adverbial`
-    - `attributive`
-    - `article`
-    - `pronoun`
-    - `dative`
-    - `genitive`
+- `predicate`: relate
+- `subject`
+- `direct address`
+- `complementary infinitive`
+- `supplementary participle`
+- `modal particle`
+- `adverbial`
+- `attributive`
+- `article`
+- `antecedent`
+- `dative`: relation of a substantive to another token (verb, noun, adjective) expressed by dative case alone
+- `genitive`: relation of two substantives expressed by genitive case alone
 
 
 
